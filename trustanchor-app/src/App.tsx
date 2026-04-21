@@ -8,6 +8,7 @@ import AppAdminRevocation from "@/pages/admin/app-admin-revocation.tsx"
 import AppAdminSettings from "@/pages/admin/app-admin-settings.tsx"
 import AppAdminDashboard from "@/pages/admin/app-admin-dashboard.tsx"
 import AppAdminOrganizations from "@/pages/admin/app-admin-organizations.tsx"
+import AppUserMain from "@/pages/user/app-user-main"
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
         <Route path="settings" element={<AppAdminSettings />} />
         <Route path="organizations" element={<AppAdminOrganizations />} />
       </Route>
+      <Route path="user" element={<AppUserMain />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
