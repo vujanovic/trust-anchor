@@ -101,8 +101,7 @@ export default function AppAdminDashboard() {
   ]
 
   return (
-    <div className="flex flex-col gap-8 px-8 py-8">
-      {/* Welcome Header */}
+    <div className="flex flex-col gap-8 px-8 py-8 bg-sidebar">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
           TrustAnchor Console
