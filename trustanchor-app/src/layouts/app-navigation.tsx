@@ -1,5 +1,4 @@
 import { Anchor, Moon, Sun } from "lucide-react"
-import { Outlet } from "react-router-dom"
 import { useEffect, useState } from "react"
 
 export default function AppNavigation() {
@@ -14,7 +13,7 @@ export default function AppNavigation() {
   }, [darkMode])
 
   return (
-    <>
+    <div className="overflow-x-hidden overflow-y-hidden">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white/80 px-6 py-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/80">
         <div className="flex items-center gap-2">
@@ -48,7 +47,6 @@ export default function AppNavigation() {
           </div>
         </div>
       </nav>
-      <Outlet />
-    </>
+    </div>
   )
 }
