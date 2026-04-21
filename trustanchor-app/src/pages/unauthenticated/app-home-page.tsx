@@ -8,10 +8,12 @@ import {
   Shield,
   Users,
 } from "lucide-react"
+import AppNavigation from "@/layouts/app-navigation.tsx"
 
 export default function AppHomePage() {
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+      <AppNavigation />
       {/* Hero Section */}
       <header className="relative overflow-hidden border-b border-slate-200 px-6 py-24 dark:border-slate-800">
         <div className="relative z-10 mx-auto max-w-6xl">
