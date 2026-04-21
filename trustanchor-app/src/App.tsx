@@ -7,6 +7,7 @@ import AppAdminCertificates from "./pages/admin/app-admin-certificates"
 import AppAdminRevocation from "@/pages/admin/app-admin-revocation.tsx"
 import AppAdminSettings from "@/pages/admin/app-admin-settings.tsx"
 import AppAdminDashboard from "@/pages/admin/app-admin-dashboard.tsx"
+import AppAdminOrganizations from "@/pages/admin/app-admin-organizations.tsx"
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
         <Route path="certificates" element={<AppAdminCertificates />} />
         <Route path="revocation" element={<AppAdminRevocation />} />
         <Route path="settings" element={<AppAdminSettings />} />
+        <Route path="organizations" element={<AppAdminOrganizations />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

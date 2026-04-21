@@ -5,7 +5,8 @@ import {
   Settings,
   ShieldCheck,
   Users,
-  History
+  History,
+  Building2,
 } from "lucide-react"
 import {
   Sidebar,
@@ -25,6 +26,7 @@ export function AppAdminSidebar() {
 
   const menuItems = [
     { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
+    { title: "Organizations", url: "/admin/organizations", icon: Building2 },
     { title: "CA Users", url: "/admin/users", icon: Users },
     { title: "Issue Certificate", url: "/admin/issue", icon: FileKey },
     { title: "All Certificates", url: "/admin/certificates", icon: ShieldCheck,},
