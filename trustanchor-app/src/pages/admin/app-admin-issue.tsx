@@ -28,10 +28,8 @@ export default function AppAdminIssue() {
           </p>
         </div>
       </div>
-
       <div className="flex-1 px-12 py-4">
         <div className="max-w-4xl space-y-12 pb-24">
-          {/* STEP 1: Certificate Authority Selection */}
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="flex size-8 items-center justify-center bg-primary text-xs font-bold text-primary-foreground">
@@ -60,7 +58,6 @@ export default function AppAdminIssue() {
                   </SelectContent>
                 </Select>
               </div>
-
               {certType !== "root" && (
                 <div className="space-y-2">
                   <Label className="text-[10px] tracking-widest text-muted-foreground uppercase">
@@ -79,8 +76,6 @@ export default function AppAdminIssue() {
               )}
             </div>
           </section>
-
-          {/* STEP 2: Subject Information (X.500 Name) */}
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="flex size-8 items-center justify-center bg-primary text-xs font-bold text-primary-foreground">
@@ -90,7 +85,6 @@ export default function AppAdminIssue() {
                 Subject Details (X.500 Name)
               </h2>
             </div>
-
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {[
                 {
@@ -121,8 +115,6 @@ export default function AppAdminIssue() {
               ))}
             </div>
           </section>
-
-          {/* STEP 3: Extensions & Validity */}
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="flex size-8 items-center justify-center bg-primary text-xs font-bold text-primary-foreground">
@@ -160,8 +152,6 @@ export default function AppAdminIssue() {
               </div>
             </div>
           </section>
-
-          {/* ISSUANCE SUMMARY / VALIDITY CHECK */}
           <div className="border-t border-sidebar-border pt-12">
             <Card className="rounded-none border-sidebar-border bg-sidebar-accent/10 shadow-none">
               <CardContent className="flex items-start gap-4 p-6">
@@ -179,8 +169,6 @@ export default function AppAdminIssue() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Final Action Button */}
           <Button className="w-full rounded-none bg-primary px-12 py-6 font-black tracking-[0.2em] text-primary-foreground uppercase shadow-2xl shadow-primary/30 transition-transform hover:scale-105 md:w-auto">
             Generate & Sign Certificate
           </Button>
