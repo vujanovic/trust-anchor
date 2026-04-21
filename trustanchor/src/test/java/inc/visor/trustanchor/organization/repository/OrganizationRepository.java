@@ -1,5 +1,8 @@
 package inc.visor.trustanchor.organization.repository;
 
 
-public interface OrganizationRepository {
+import inc.visor.trustanchor.organization.entity.Organization;
+import org.springframework.data.repository.CrudRepository;
+
+public interface OrganizationRepository extends CrudRepository<Organization, Long> {
 }
