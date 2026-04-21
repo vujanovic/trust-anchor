@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { useEffect } from "react"
 
 const organizations = [
   {
@@ -49,6 +50,13 @@ const organizations = [
 export default function AdminOrganizationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get("id")
+
+  useEffect(() => {
+    if (!selectedId && organizations.length > 0) {
+      setSearchParams({ id: organizations[0].id }, { replace: true })
+    }
+  }, [selectedId, setSearchParams])
+
   const selectedOrg = organizations.find((o) => o.id === selectedId)
 
   return (
@@ -92,7 +100,6 @@ export default function AdminOrganizationsPage() {
           ))}
         </div>
       </div>
-
       <div className="relative flex flex-1 flex-col bg-sidebar">
         {selectedOrg ? (
           <div className="flex h-full flex-col">
@@ -121,7 +128,7 @@ export default function AdminOrganizationsPage() {
             </div>
 
             <div className="flex-1 p-12">
-              <div className="max-w-4xl">
+              <div className="w-full">
                 <div className="mb-12 flex items-start gap-6">
                   <div className="flex size-20 items-center justify-center bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                     <Building2 className="size-10" />
@@ -193,7 +200,7 @@ export default function AdminOrganizationsPage() {
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center">
+          <div className="flex h-full w-full flex-1 items-center justify-center px-64">
             <div className="space-y-4 text-center">
               <div className="mx-auto flex size-20 items-center justify-center rounded-full border border-sidebar-border bg-sidebar-accent/20">
                 <Building2 className="size-8 text-muted-foreground/30" />
@@ -204,11 +211,9 @@ export default function AdminOrganizationsPage() {
             </div>
           </div>
         )}
-
-        {/* LARGE FLOATING ACTION BUTTON (Lower Right) */}
         <Button
           size="lg"
-          className="group fixed right-10 bottom-10 size-16 rounded-none bg-primary text-primary-foreground shadow-2xl shadow-primary/40 transition-transform hover:scale-105"
+          className="group fixed right-10 bottom-10 size-16 rounded-4xl bg-primary text-primary-foreground shadow-2xl shadow-primary/40 transition-transform hover:scale-105"
         >
           <Plus className="size-8 transition-transform group-hover:rotate-90" />
         </Button>
