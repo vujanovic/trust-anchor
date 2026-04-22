@@ -1,11 +1,14 @@
 package inc.visor.trustanchor.organization.entity;
 
+import inc.visor.trustanchor.organization.dto.CreateOrganizationDto;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
 @Data
+@Builder
 @Entity
 @Table(name = "organizations")
 public class Organization {
@@ -14,16 +17,16 @@ public class Organization {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(nullable = false, unique = true, length = 64)
+    @Column(name = "code", nullable = false, unique = true, length = 64)
     private String code;
 
     @Column(name = "location")
     private String location;
 
-    @Column(nullable = false)
+    @Column(name = "email", nullable = false)
     private String email;
 
     @Column(name = "domain")
@@ -31,4 +34,8 @@ public class Organization {
 
     @Column(name = "registration_date", nullable = false)
     private LocalDateTime registrationDate;
+
+    public Organization() {
+
+    }
 }
