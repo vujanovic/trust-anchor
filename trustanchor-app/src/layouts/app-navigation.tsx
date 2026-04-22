@@ -1,8 +1,10 @@
 import { Anchor, Moon, Sun } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function AppNavigation() {
   const [darkMode, setDarkMode] = useState(true)
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (darkMode) {
@@ -38,10 +40,16 @@ export default function AppNavigation() {
             )}
           </button>
           <div className="hidden gap-4 md:flex">
-            <button className="px-4 py-2 text-sm font-medium text-slate-600 transition hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400">
+            <button
+              onClick={() => navigate("/login")}
+              className="px-4 py-2 text-sm font-medium text-slate-600 transition hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400"
+            >
               Log In
             </button>
-            <button className="rounded-md bg-cyan-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700">
+            <button
+              onClick={() => navigate("/register")}
+              className="rounded-md bg-cyan-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700"
+            >
               Get Started
             </button>
           </div>

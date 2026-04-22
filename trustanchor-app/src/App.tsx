@@ -9,11 +9,15 @@ import AppAdminSettings from "@/pages/admin/app-admin-settings.tsx"
 import AppAdminDashboard from "@/pages/admin/app-admin-dashboard.tsx"
 import AppAdminOrganizations from "@/pages/admin/app-admin-organizations.tsx"
 import AppUserMain from "@/pages/user/app-user-main"
+import AppRegistration from "@/pages/unauthenticated/app-registration.tsx"
+import AppLogin from "@/pages/unauthenticated/app-login.tsx"
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<AppHomePage />} />
+      <Route path="register" element={<AppRegistration />} />
+      <Route path="login" element={<AppLogin />} />
       <Route path="admin" element={<AppAdminMain />}>
         <Route index element={<AppAdminDashboard />} />
         <Route path="users" element={<AppAdminUsers />} />
