@@ -38,7 +38,7 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public List<User> getByUserRole(UserRole userRole) {
+    public List<User> findAllByUserRole(UserRole userRole) {
         return userRepository.findAllByUserRole(userRole);
     }
 }
