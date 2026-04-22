@@ -91,6 +91,19 @@ export default function AppRegistration() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                  Repeat Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                  />
+                </div>
+              </div>
               <button className="group relative mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
                 Register Identity
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
