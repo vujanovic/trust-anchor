@@ -15,7 +15,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import AppUserDialog from "@/pages/admin/dialog/app-user-dialog.tsx"
 
 const adminUsers = [
   {
@@ -38,8 +39,39 @@ const adminUsers = [
   },
 ]
 
+const organizations = [
+  {
+    id: "1",
+    name: "SIIT Security Lab",
+    code: "SIIT",
+    email: "contact@siit.rs",
+    created: "2024-03-10",
+    website: "siit.rs",
+    location: "Novi Sad, Serbia",
+  },
+  {
+    id: "2",
+    name: "FTN Novi Sad",
+    code: "FTN",
+    email: "admin@ftn.uns.ac.rs",
+    created: "2024-01-15",
+    website: "uns.ac.rs",
+    location: "Novi Sad, Serbia",
+  },
+  {
+    id: "3",
+    name: "TrustAnchor Root",
+    code: "TAR",
+    email: "root@trustanchor.com",
+    created: "2023-12-01",
+    website: "trustanchor.com",
+    location: "Belgrade, Serbia",
+  },
+]
+
 export default function AppAdminUsers() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const selectedId = searchParams.get("id")
 
   useEffect(() => {
@@ -50,8 +82,16 @@ export default function AppAdminUsers() {
 
   const selectedUser = adminUsers.find((u) => u.id === selectedId)
 
+  const handleUserSubmit = async () => {}
+
   return (
     <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-sidebar">
+      <AppUserDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onSubmit={handleUserSubmit}
+        organizations={organizations}
+      />
       <div className="flex w-80 flex-col border-r border-sidebar-border bg-sidebar-accent/5">
         <div className="space-y-4 border-b border-sidebar-border p-4">
           <h2 className="text-sm font-bold tracking-widest text-sidebar-foreground uppercase">
@@ -193,6 +233,7 @@ export default function AppAdminUsers() {
           </div>
         )}
         <Button
+          onClick={() => setIsDialogOpen(true)}
           size="lg"
           className="group fixed right-10 bottom-10 size-16 rounded-4xl bg-primary text-primary-foreground shadow-2xl shadow-primary/40 transition-transform hover:scale-105"
         >
