@@ -1,15 +1,18 @@
 package inc.visor.trustanchor.user.entity;
 
-import inc.visor.trustanchor.authentication.dto.RegistrationDto;
 import inc.visor.trustanchor.organization.entity.Organization;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
 @Entity
 @Table(name = "user")
+@AllArgsConstructor
+@NoArgsConstructor
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,8 +42,4 @@ public class User {
     @Enumerated(EnumType.ORDINAL)
     @JoinColumn(name = "user_role_id", nullable = false)
     private UserRole userRole;
-
-    public User() {
-
-    }
 }

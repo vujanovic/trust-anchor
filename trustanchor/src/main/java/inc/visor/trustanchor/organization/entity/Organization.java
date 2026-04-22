@@ -1,9 +1,10 @@
 package inc.visor.trustanchor.organization.entity;
 
-import inc.visor.trustanchor.organization.dto.CreateOrganizationDto;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -11,6 +12,8 @@ import java.time.LocalDateTime;
 @Builder
 @Entity
 @Table(name = "organizations")
+@AllArgsConstructor
+@NoArgsConstructor
 public class Organization {
 
     @Id
@@ -34,8 +37,4 @@ public class Organization {
 
     @Column(name = "registration_date", nullable = false)
     private LocalDateTime registrationDate;
-
-    public Organization() {
-
-    }
 }

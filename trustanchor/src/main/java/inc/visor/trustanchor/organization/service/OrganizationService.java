@@ -5,7 +5,6 @@ import inc.visor.trustanchor.organization.dto.CreateOrganizationDto;
 import inc.visor.trustanchor.organization.dto.OrganizationDto;
 import inc.visor.trustanchor.organization.entity.Organization;
 import inc.visor.trustanchor.organization.repository.OrganizationRepository;
-import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
