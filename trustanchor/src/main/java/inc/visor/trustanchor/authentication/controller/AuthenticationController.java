@@ -3,6 +3,7 @@ package inc.visor.trustanchor.authentication.controller;
 import inc.visor.trustanchor.authentication.dto.*;
 import inc.visor.trustanchor.authentication.service.AuthenticationService;
 import inc.visor.trustanchor.user.dto.UserDto;
+import inc.visor.trustanchor.user.entity.User;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@Valid @RequestBody RegistrationDto registrationDto) {
-        authenticationService.register(registrationDto);
-        return ResponseEntity.ok("User registered successfully");
+    public ResponseEntity<UserDto> register(@Valid @RequestBody RegistrationDto registrationDto) {
+        User user = authenticationService.register(registrationDto);
+        return ResponseEntity.ok(new UserDto(user));
     }
 
     @PostMapping("/login")

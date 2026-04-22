@@ -1,23 +1,28 @@
 package inc.visor.trustanchor.user.entity;
 
-import inc.visor.trustanchor.authentication.dto.RegistrationDto;
 import inc.visor.trustanchor.organization.entity.Organization;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@Builder
 @Entity
-@Table(name = "user")
+@Table(name = "users")
+@AllArgsConstructor
+@NoArgsConstructor
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id", nullable = false)
     private long id;
 
-    @JoinColumn(name = "first_name", nullable = false)
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    @JoinColumn(name = "last_name", nullable = false)
+    @Column(name = "last_name", nullable = false)
     private String lastName;
 
     @Column(name = "email", unique = true, nullable = false)
@@ -35,20 +40,6 @@ public class User {
     private UserStatus userStatus;
 
     @Enumerated(EnumType.ORDINAL)
-    @JoinColumn(name = "user_role_id", nullable = false)
+    @Column(name = "user_role", nullable = false)
     private UserRole userRole;
-
-    public User(RegistrationDto registrationDto, String password, Organization organization) {
-        this.firstName = registrationDto.getFirstName();
-        this.lastName = registrationDto.getLastName();
-        this.email = registrationDto.getEmail();
-        this.password = password;
-        this.organization = organization;
-        this.userStatus = UserStatus.ACTIVE;
-        this.userRole = UserRole.USER;
-    }
-
-    public User() {
-
-    }
 }
