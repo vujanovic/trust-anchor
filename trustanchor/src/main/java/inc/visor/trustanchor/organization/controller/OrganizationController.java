@@ -45,7 +45,7 @@ public class OrganizationController {
         return ResponseEntity.ok(new OrganizationDto(organizationService.update(organization, dto)));
     }
 
-    @PutMapping("/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void>  deleteOrganization(@PathVariable Long id) {
         final Organization organization = organizationService.findById(id).orElseThrow(NotFoundException::new);
         organizationService.delete(organization);

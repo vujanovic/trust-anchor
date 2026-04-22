@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Data
 @Builder
 @Entity
-@Table(name = "user")
+@Table(name = "users")
 @AllArgsConstructor
 @NoArgsConstructor
 public class User {
@@ -19,10 +19,10 @@ public class User {
     @Column(name = "user_id", nullable = false)
     private long id;
 
-    @JoinColumn(name = "first_name", nullable = false)
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    @JoinColumn(name = "last_name", nullable = false)
+    @Column(name = "last_name", nullable = false)
     private String lastName;
 
     @Column(name = "email", unique = true, nullable = false)
@@ -40,6 +40,6 @@ public class User {
     private UserStatus userStatus;
 
     @Enumerated(EnumType.ORDINAL)
-    @JoinColumn(name = "user_role_id", nullable = false)
+    @Column(name = "user_role", nullable = false)
     private UserRole userRole;
 }
