@@ -1,17 +1,13 @@
 package inc.visor.trustanchor.organization.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
-import java.time.LocalDate;
+import lombok.Data;
+
 import java.time.LocalDateTime;
 
+@Data
 @Entity
 @Table(name = "organizations")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Organization {
 
     @Id
