@@ -1,5 +1,6 @@
 package inc.visor.trustanchor.user.entity;
 
+import inc.visor.trustanchor.authentication.dto.RegistrationDto;
 import inc.visor.trustanchor.organization.entity.Organization;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -36,4 +37,18 @@ public class User {
     @Enumerated(EnumType.ORDINAL)
     @JoinColumn(name = "user_role_id", nullable = false)
     private UserRole userRole;
+
+    public User(RegistrationDto registrationDto, String password, Organization organization) {
+        this.firstName = registrationDto.getFirstName();
+        this.lastName = registrationDto.getLastName();
+        this.email = registrationDto.getEmail();
+        this.password = password;
+        this.organization = organization;
+        this.userStatus = UserStatus.ACTIVE;
+        this.userRole = UserRole.USER;
+    }
+
+    public User() {
+
+    }
 }
