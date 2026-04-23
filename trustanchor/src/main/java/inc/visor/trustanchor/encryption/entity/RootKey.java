@@ -1,12 +1,11 @@
 package inc.visor.trustanchor.encryption.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-@Data
+@Getter
 @Entity
 @Table(name = "root_keys")
 public class RootKey {
@@ -16,9 +15,14 @@ public class RootKey {
     @Column(name = "key_id", nullable = false)
     private long id;
 
-    @Lob
     @Column(name = "encrypted_key", nullable = false)
     private byte[] encryptedKey;
+
+    @Column(name = "nonce", nullable = false)
+    private byte[] nonce;
+
+    @Column(name = "auth_tag", nullable = false)
+    private byte[] authTag;
 
     @Column(name = "master_key_version", nullable = false)
     private int masterKeyVersion = 1;
