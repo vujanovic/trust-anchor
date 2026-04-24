@@ -1,0 +1,79 @@
+# init-vault.ps1
+# Run this ONCE when setting up Vault for the first time
+
+Write-Host "=== Vault Initial Setup ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Start Docker
+Write-Host "Starting Docker Compose..." -ForegroundColor Yellow
+docker compose up -d
+Start-Sleep -Seconds 5
+
+# Initialize Vault
+Write-Host ""
+Write-Host "Initializing Vault..." -ForegroundColor Yellow
+$env:VAULT_ADDR='http://127.0.0.1:8200'
+$initOutput = vault operator init -key-shares=1 -key-threshold=1
+
+# Parse the output
+$unsealKey = ($initOutput | Select-String "Unseal Key 1: (.+)").Matches.Groups[1].Value
+$rootToken = ($initOutput | Select-String "Initial Root Token: (.+)").Matches.Groups[1].Value
+
+Write-Host ""
+Write-Host "=== SAVE THESE VALUES ===" -ForegroundColor Red
+Write-Host "Unseal Key: $unsealKey" -ForegroundColor Green
+Write-Host "Root Token: $rootToken" -ForegroundColor Green
+Write-Host ""
+
+# Update .env file
+$envPath = Join-Path $PSScriptRoot ".env"
+@"
+VAULT_ADDR=http://localhost:8200
+VAULT_TOKEN=$rootToken
+VAULT_UNSEAL_KEY=$unsealKey
+"@ | Out-File -FilePath $envPath -Encoding UTF8
+
+Write-Host "✅ .env file created at: $envPath" -ForegroundColor Green
+Write-Host ""
+
+# Load env and unseal
+$env:VAULT_TOKEN = $rootToken
+$env:VAULT_UNSEAL_KEY = $unsealKey
+
+Write-Host "Unsealing Vault..." -ForegroundColor Yellow
+vault operator unseal $unsealKey
+
+# Enable KV v2
+Write-Host ""
+Write-Host "Enabling KV v2 secrets engine..." -ForegroundColor Yellow
+vault secrets enable -path=secret kv-v2
+
+# Generate and store encryption key
+Write-Host ""
+Write-Host "Generating encryption key..." -ForegroundColor Yellow
+$encryptionKey = openssl rand -hex 32
+
+Write-Host "Storing encryption key in Vault..." -ForegroundColor Yellow
+vault kv put secret/application master.encryption.key=$encryptionKey
+
+# Create other paths Spring looks for
+vault kv put secret/trustanchor/dev placeholder=true
+vault kv put secret/trustanchor placeholder=true
+vault kv put secret/application/dev placeholder=true
+
+Write-Host ""
+Write-Host "=== Setup Complete! ===" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "✅ Vault initialized and unsealed" -ForegroundColor Green
+Write-Host "✅ KV v2 secrets engine enabled" -ForegroundColor Green
+Write-Host "✅ Encryption key generated and stored" -ForegroundColor Green
+Write-Host "✅ .env file created" -ForegroundColor Green
+Write-Host ""
+Write-Host "Encryption Key: $encryptionKey" -ForegroundColor Yellow
+Write-Host "⚠️  Save this key in your password manager!" -ForegroundColor Red
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "  1. Save the unseal key and root token somewhere safe"
+Write-Host "  2. Use .\start-vault.ps1 for daily startup"
+Write-Host "  3. Start your Spring Boot app from IntelliJ"
+Write-Host ""
