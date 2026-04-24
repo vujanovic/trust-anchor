@@ -1,13 +1,19 @@
 package inc.visor.trustanchor.encryption.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Getter
 @Entity
 @Table(name = "root_keys")
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class RootKey {
 
     @Id
