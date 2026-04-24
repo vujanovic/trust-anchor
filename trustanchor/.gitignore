@@ -4,6 +4,8 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+/secrets
+
 ### STS ###
 .apt_generated
 .classpath
@@ -31,3 +33,15 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+.env
+
+vault/data/
+
+vault/MASTER_KEY.txt
+vault/*.key
+
+application-prod.properties
+application-local.properties
+

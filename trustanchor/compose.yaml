@@ -12,3 +12,27 @@ services:
     ports:
       - '1025:1025'
       - '8025:8025'
+
+  vault:
+    image: hashicorp/vault:latest
+    container_name: trustanchor-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_ADDR: http://0.0.0.0:8200
+      SKIP_SETCAP: "true"
+    volumes:
+      - vault-data:/vault/file
+      - ./vault-config.hcl:/vault/config/vault.hcl
+    cap_add:
+      - IPC_LOCK
+    command: server
+    healthcheck:
+      test: [ "CMD", "vault", "status" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  vault-data:
