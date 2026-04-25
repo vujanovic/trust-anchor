@@ -3,8 +3,9 @@ export interface UserDto {
   firstName: string
   lastName: string
   email: string
-  userRole: "ADMIN" | "CA_USER" | "USER"
-  userStatus: "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED"
+  organizationId: number
+  role: "ADMIN" | "CA_USER" | "USER"
+  status: "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED"
 }
 
 export interface LoginResponse {

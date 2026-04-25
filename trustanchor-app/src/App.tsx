@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom"
+import { ProtectedRoute } from "@/components/protected-route"
 import AppHomePage from "@/pages/unauthenticated/app-home-page.tsx"
 import AppAdminMain from "@/pages/admin/app-admin-main.tsx"
 import AppAdminUsers from "@/pages/admin/app-admin-users.tsx"
@@ -18,16 +19,25 @@ export function App() {
       <Route path="/" element={<AppHomePage />} />
       <Route path="register" element={<AppRegistration />} />
       <Route path="login" element={<AppLogin />} />
-      <Route path="admin" element={<AppAdminMain />}>
-        <Route index element={<AppAdminDashboard />} />
-        <Route path="users" element={<AppAdminUsers />} />
-        <Route path="issue" element={<AppAdminIssue />} />
-        <Route path="certificates" element={<AppAdminCertificates />} />
-        <Route path="revocation" element={<AppAdminRevocation />} />
-        <Route path="settings" element={<AppAdminSettings />} />
-        <Route path="organizations" element={<AppAdminOrganizations />} />
+
+      <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+        <Route path="admin" element={<AppAdminMain />}>
+          <Route index element={<AppAdminDashboard />} />
+          <Route path="users" element={<AppAdminUsers />} />
+          <Route path="issue" element={<AppAdminIssue />} />
+          <Route path="certificates" element={<AppAdminCertificates />} />
+          <Route path="revocation" element={<AppAdminRevocation />} />
+          <Route path="settings" element={<AppAdminSettings />} />
+          <Route path="organizations" element={<AppAdminOrganizations />} />
+        </Route>
       </Route>
-      <Route path="user" element={<AppUserMain />} />
+
+      <Route
+        element={<ProtectedRoute allowedRoles={["USER", "CA_USER", "ADMIN"]} />}
+      >
+        <Route path="user" element={<AppUserMain />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
