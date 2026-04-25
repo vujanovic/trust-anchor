@@ -1,9 +1,11 @@
 package inc.visor.trustanchor.config;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -43,6 +45,18 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, ex) -> {
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setStatus(401);
+                    response.getWriter().write(jsonError("Authentication required", "401"));
+                })
+                .accessDeniedHandler((request, response, ex) -> {
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.setStatus(403);
+                    response.getWriter().write(jsonError("Access denied", "403"));
+                })
+            )
             .authenticationProvider(authenticationProvider)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -60,5 +74,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    private String jsonError(String message, String statusCode) {
+        return "{\"message\":\"%s\",\"statusCode\":\"%s\",\"timestamp\":%d}"
+            .formatted(message, statusCode, Instant.now().toEpochMilli());
     }
 }
