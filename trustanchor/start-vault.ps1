@@ -52,6 +52,18 @@ if ($status.sealed) {
 }
 
 Write-Host ""
+Write-Host "Syncing secrets to Vault..." -ForegroundColor Yellow
+vault kv put secret/application `
+    jwt.secret="$env:JWT_SECRET" | Out-Null
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "✅ Secrets synced to Vault" -ForegroundColor Green
+} else {
+    Write-Host "❌ Failed to sync secrets to Vault" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
 Write-Host "=== Vault is ready! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "You can now start your Spring Boot application" -ForegroundColor Yellow
