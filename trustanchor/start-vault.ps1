@@ -53,8 +53,9 @@ if ($status.sealed) {
 
 Write-Host ""
 Write-Host "Syncing secrets to Vault..." -ForegroundColor Yellow
-vault kv put secret/application `
-    jwt.secret="$env:JWT_SECRET" | Out-Null
+vault kv patch secret/application `
+    jwt.secret="$env:JWT_SECRET" `
+    master.encryption.key="$env:MASTER_ENCRYPTION_KEY" | Out-Null
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Secrets synced to Vault" -ForegroundColor Green

@@ -25,7 +25,7 @@ Write-Host "Unseal Key: $unsealKey" -ForegroundColor Green
 Write-Host "Root Token: $rootToken" -ForegroundColor Green
 Write-Host ""
 
-# Update .env file
+# Update .env file (encryption key generated later — placeholder updated below)
 $envPath = Join-Path $PSScriptRoot ".env"
 @"
 VAULT_ADDR=http://localhost:8200
@@ -55,6 +55,10 @@ $encryptionKey = openssl rand -hex 32
 
 Write-Host "Storing encryption key in Vault..." -ForegroundColor Yellow
 vault kv put secret/application master.encryption.key=$encryptionKey
+
+# Append encryption key to .env so start-vault.ps1 can re-sync it on every startup
+Add-Content -Path $envPath -Value "JWT_SECRET=$env:JWT_SECRET"
+Add-Content -Path $envPath -Value "MASTER_ENCRYPTION_KEY=$encryptionKey"
 
 # Create other paths Spring looks for
 vault kv put secret/trustanchor/dev placeholder=true
