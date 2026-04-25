@@ -48,4 +48,8 @@ public class AnchorUserDetails implements UserDetails {
     public boolean isEnabled() {
         return UserDetails.super.isEnabled();
     }
+
+    public long getId() {
+        return user.getId();
+    }
 }
