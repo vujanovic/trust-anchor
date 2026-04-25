@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import inc.visor.trustanchor.authentication.dto.LoginDto;
 import inc.visor.trustanchor.authentication.dto.LoginResponseDto;
+import inc.visor.trustanchor.authentication.dto.RefreshRequestDto;
 import inc.visor.trustanchor.authentication.dto.RegistrationDto;
 import inc.visor.trustanchor.authentication.entity.RefreshToken;
 import inc.visor.trustanchor.email.EmailService;
@@ -60,6 +61,24 @@ public class AuthenticationService {
         RefreshToken refreshToken = refreshTokenService.create(user);
 
         return new LoginResponseDto(accessToken, refreshToken.getToken(), new UserDto(user));
+    }
+
+    public LoginResponseDto refresh(RefreshRequestDto dto) {
+        RefreshToken oldToken = refreshTokenService.validate(dto.getRefreshToken());
+        User user = oldToken.getUser();
+
+        refreshTokenService.revoke(oldToken);
+
+        AnchorUserDetails userDetails = new AnchorUserDetails(user);
+        String accessToken = jwtService.generateAccessToken(userDetails);
+        RefreshToken newRefreshToken = refreshTokenService.create(user);
+
+        return new LoginResponseDto(accessToken, newRefreshToken.getToken(), new UserDto(user));
+    }
+
+    public void logout(RefreshRequestDto dto) {
+        RefreshToken token = refreshTokenService.validate(dto.getRefreshToken());
+        refreshTokenService.revoke(token);
     }
 
 }
