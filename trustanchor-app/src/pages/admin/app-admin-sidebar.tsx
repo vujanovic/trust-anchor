@@ -2,6 +2,7 @@ import {
   Anchor,
   FileKey,
   LayoutDashboard,
+  LogOut,
   Settings,
   ShieldCheck,
   Users,
@@ -19,10 +20,18 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "../../components/ui/sidebar.tsx"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useAuth } from "@/hooks/use-auth"
 
 export function AppAdminSidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { logout, user } = useAuth()
+
+  const handleLogout = async () => {
+    await logout()
+    navigate("/login", { replace: true })
+  }
 
   const menuItems = [
     { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
@@ -71,8 +80,21 @@ export function AppAdminSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4 text-xs text-muted-foreground">
-        Admin v1.0.0
+      <SidebarFooter className="border-t border-sidebar-border/50 p-3">
+        <div className="mb-2 px-2 py-1">
+          <p className="text-sm font-semibold leading-none text-foreground">
+            {user?.firstName} {user?.lastName}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{user?.email}</p>
+        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleLogout} className="text-red-500 hover:bg-red-500/10 hover:text-red-500">
+              <LogOut className="size-4" />
+              <span>Logout</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )
