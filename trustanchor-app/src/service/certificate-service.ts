@@ -4,16 +4,16 @@ import type {
   IssueCertificateRequest,
 } from "@/types/certificate"
 
-const svc = createService("/certificates")
+const service = createService("/certificates")
 
-export const getMyCertificates = () => svc.get<CertificateDto[]>()
+export const getMyCertificates = () => service.get<CertificateDto[]>()
 
 export const getOrganizationCertificates = (orgId?: number) =>
-  svc.get<CertificateDto[]>("/organization", {
+  service.get<CertificateDto[]>("/organization", {
     params: orgId !== undefined ? { orgId } : undefined,
   })
 
-export const getAvailableIssuers = () => svc.get<CertificateDto[]>("/issuers")
-
+export const getAvailableIssuers = () =>
+  service.get<CertificateDto[]>("/issuers")
 export const issueCertificate = (dto: IssueCertificateRequest) =>
-  svc.post<CertificateDto>("/issue", dto)
+  service.post<CertificateDto>("/issue", dto)
