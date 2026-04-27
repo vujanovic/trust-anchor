@@ -200,7 +200,8 @@ export default function AppCAUserMain() {
       extensions: {
         ...p.extensions,
         isCA: type === "INTERMEDIATE",
-        ...(type === "INTERMEDIATE" && { keyCertSign: true, crlSign: true }),
+        keyCertSign: type === "INTERMEDIATE",
+        crlSign: type === "INTERMEDIATE",
       },
     }))
     if (type === "INTERMEDIATE") setShowExt(true)

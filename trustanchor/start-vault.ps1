@@ -100,9 +100,11 @@ $body = @{
 } | ConvertTo-Json
 
 try {
+    # PATCH merges the provided keys into the existing secret version without
+    # dropping keys that are not listed here (unlike POST which replaces all data).
     Invoke-RestMethod -Uri "$vaultAddr/v1/secret/data/application" `
-        -Method Post -Headers $headers -Body $body `
-        -ContentType "application/json" -ErrorAction Stop | Out-Null
+        -Method Patch -Headers $headers -Body $body `
+        -ContentType "application/merge-patch+json" -ErrorAction Stop | Out-Null
     Write-Host "[OK] Secrets synced to Vault" -ForegroundColor Green
 
     # Refresh application-local.properties (no BOM - Java Properties.load requires clean UTF-8)

@@ -9,6 +9,7 @@ import inc.visor.trustanchor.certificate.entity.Certificate;
 import inc.visor.trustanchor.certificate.enums.CertificateStatus;
 import inc.visor.trustanchor.certificate.enums.CertificateType;
 import inc.visor.trustanchor.certificate.repository.CertificateRepository;
+import inc.visor.trustanchor.exception.NotFoundException;
 import inc.visor.trustanchor.user.entity.UserRole;
 
 @Service
@@ -38,18 +39,21 @@ public class CertificateService {
     }
 
     public List<Certificate> getAvailableIssuers(Long organizationId, UserRole userRole) {
-        return switch (userRole) {
-            case ADMIN -> certificateRepository.findByCertificateTypeInAndStatus(List.of(CertificateType.ROOT, CertificateType.INTERMEDIATE), CertificateStatus.ACTIVE);
-            case CA_USER -> certificateRepository.findByOrganizationIdAndCertificateTypeInAndStatus(organizationId, List.of(CertificateType.ROOT, CertificateType.INTERMEDIATE), CertificateStatus.ACTIVE);
-            default -> List.of();
+        List<CertificateType> caTypes = List.of(CertificateType.ROOT, CertificateType.INTERMEDIATE);
+        List<Certificate> candidates = switch (userRole) {
+            case ADMIN   -> certificateRepository.findByCertificateTypeInAndStatus(caTypes, CertificateStatus.ACTIVE);
+            case CA_USER -> certificateRepository.findByOrganizationIdAndCertificateTypeInAndStatus(organizationId, caTypes, CertificateStatus.ACTIVE);
+            default      -> List.of();
         };
+        return candidates.stream().filter(Certificate::isValid).toList();
     }
 
     public Certificate getCertificateForOrganization(Long certificateId, Long organizationId) {
-        Certificate certificate = certificateRepository.findById(certificateId).orElse(null);
-        if (certificate != null && certificate.getOrganizationId().equals(organizationId)) {
-            return certificate;
+        Certificate certificate = certificateRepository.findById(certificateId)
+                .orElseThrow(() -> new NotFoundException("Certificate not found"));
+        if (!certificate.getOrganizationId().equals(organizationId)) {
+            throw new NotFoundException("Certificate not found");
         }
-        return null;
+        return certificate;
     }
 }

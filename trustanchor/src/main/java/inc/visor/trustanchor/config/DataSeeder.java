@@ -46,8 +46,6 @@ import lombok.RequiredArgsConstructor;
 public class DataSeeder implements CommandLineRunner {
 
     private static final int KEY_SIZE = 2048;
-    private static final int NONCE_LENGTH = 12;
-    private static final int AUTH_TAG_LENGTH = 16;
 
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
@@ -147,7 +145,7 @@ public class DataSeeder implements CommandLineRunner {
 
         SecretKey orgKey = orgKeyService.getOrCreateOrgKey(org.getId());
         EncryptedData enc = encryptionService.encrypt(keyPair.getPrivate().getEncoded(), orgKey);
-        byte[] packedKey = packEncrypted(enc);
+        byte[] packedKey = enc.pack();
 
         Certificate cert = new Certificate();
         cert.setSerialNumber(serial.toString(16));
@@ -167,11 +165,4 @@ public class DataSeeder implements CommandLineRunner {
         certificateRepository.save(cert);
     }
 
-    private byte[] packEncrypted(EncryptedData enc) {
-        byte[] out = new byte[NONCE_LENGTH + enc.ciphertext().length + AUTH_TAG_LENGTH];
-        System.arraycopy(enc.nonce(),      0, out, 0,                                       NONCE_LENGTH);
-        System.arraycopy(enc.ciphertext(), 0, out, NONCE_LENGTH,                            enc.ciphertext().length);
-        System.arraycopy(enc.authTag(),    0, out, NONCE_LENGTH + enc.ciphertext().length,  AUTH_TAG_LENGTH);
-        return out;
-    }
 }

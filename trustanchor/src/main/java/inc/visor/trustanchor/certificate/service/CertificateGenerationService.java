@@ -57,8 +57,6 @@ public class CertificateGenerationService {
 
     private static final String SIGN_ALGORITHM = "SHA256withRSA";
     private static final int KEY_SIZE = 2048;
-    private static final int NONCE_LENGTH = 12;
-    private static final int AUTH_TAG_LENGTH = 16;
 
     private final CertificateRepository certificateRepository;
     private final EncryptionService encryptionService;
@@ -174,7 +172,7 @@ public class CertificateGenerationService {
             // 16. Encrypt new private key: nonce(12) || ciphertext || authTag(16)
             SecretKey orgKey = orgKeyService.getOrCreateOrgKey(orgId);
             EncryptedData enc = encryptionService.encrypt(keyPair.getPrivate().getEncoded(), orgKey);
-            byte[] packedPrivKey = packEncrypted(enc);
+            byte[] packedPrivKey = enc.pack();
 
             // 17. Persist
             Certificate cert = new Certificate();
@@ -219,7 +217,7 @@ public class CertificateGenerationService {
     }
 
     private java.security.PrivateKey decryptCertificatePrivateKey(Certificate cert) throws Exception {
-        EncryptedData enc = unpackEncrypted(cert.getPrivateKeyEncrypted());
+        EncryptedData enc = EncryptedData.unpack(cert.getPrivateKeyEncrypted());
         SecretKey orgKey = orgKeyService.getOrCreateOrgKey(cert.getOrganizationId());
         byte[] keyBytes = encryptionService.decrypt(enc, orgKey);
         return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
@@ -274,27 +272,6 @@ public class CertificateGenerationService {
         if (Boolean.TRUE.equals(ext.dataEncipherment()))  bits |= KeyUsage.dataEncipherment;
         if (Boolean.TRUE.equals(ext.nonRepudiation()))    bits |= KeyUsage.nonRepudiation;
         return bits;
-    }
-
-    private byte[] packEncrypted(EncryptedData enc) {
-        byte[] out = new byte[NONCE_LENGTH + enc.ciphertext().length + AUTH_TAG_LENGTH];
-        System.arraycopy(enc.nonce(),      0, out, 0,                                      NONCE_LENGTH);
-        System.arraycopy(enc.ciphertext(), 0, out, NONCE_LENGTH,                           enc.ciphertext().length);
-        System.arraycopy(enc.authTag(),    0, out, NONCE_LENGTH + enc.ciphertext().length, AUTH_TAG_LENGTH);
-        return out;
-    }
-
-    private EncryptedData unpackEncrypted(byte[] packed) {
-        if (packed.length < NONCE_LENGTH + AUTH_TAG_LENGTH) {
-            throw new IllegalArgumentException("Invalid packed key length: " + packed.length);
-        }
-        byte[] nonce      = new byte[NONCE_LENGTH];
-        byte[] authTag    = new byte[AUTH_TAG_LENGTH];
-        byte[] ciphertext = new byte[packed.length - NONCE_LENGTH - AUTH_TAG_LENGTH];
-        System.arraycopy(packed, 0,                               nonce,      0, NONCE_LENGTH);
-        System.arraycopy(packed, NONCE_LENGTH,                    ciphertext, 0, ciphertext.length);
-        System.arraycopy(packed, NONCE_LENGTH + ciphertext.length, authTag,   0, AUTH_TAG_LENGTH);
-        return new EncryptedData(ciphertext, nonce, authTag);
     }
 
     private String extensionsToJson(ExtensionsDto ext) {
