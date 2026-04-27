@@ -25,6 +25,7 @@ export default function AppLogin() {
   useEffect(() => {
     if (!isAuthenticated || !user) return
     if (user.role === "ADMIN") navigate("/admin", { replace: true })
+    else if (user.role === "CA_USER") navigate("/ca", { replace: true })
     else navigate("/user", { replace: true })
   }, [isAuthenticated, user, navigate])
 

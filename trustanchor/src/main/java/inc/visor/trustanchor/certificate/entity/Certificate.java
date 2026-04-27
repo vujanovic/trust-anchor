@@ -54,15 +54,12 @@ public class Certificate {
     @Column(name = "not_after", nullable = false)
     private LocalDateTime notAfter;
 
-    @Lob
     @Column(name = "certificate_content", nullable = false, columnDefinition = "BYTEA")
-    private byte[] certificateContent; // this is used for downloading certificate
+    private byte[] certificateContent;
 
-    @Lob
     @Column(name = "public_key", nullable = false, columnDefinition = "BYTEA")
     private byte[] publicKey;
 
-    @Lob
     @Column(name = "private_key_encrypted", columnDefinition = "BYTEA")
     private byte[] privateKeyEncrypted;
 

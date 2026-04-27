@@ -3,8 +3,8 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 export default function AppNavigation() {
-  const [darkMode, setDarkMode] = useState(true)
-  const navigate = useNavigate();
+  const [darkMode, setDarkMode] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (darkMode) {

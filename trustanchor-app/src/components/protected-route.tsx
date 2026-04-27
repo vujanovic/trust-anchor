@@ -6,6 +6,12 @@ interface Props {
   allowedRoles?: UserDto["role"][]
 }
 
+function homeRoute(role: UserDto["role"]): string {
+  if (role === "ADMIN") return "/admin"
+  if (role === "CA_USER") return "/ca"
+  return "/user"
+}
+
 export function ProtectedRoute({ allowedRoles }: Props) {
   const { user, isAuthenticated, isInitializing } = useAuth()
 
@@ -18,7 +24,7 @@ export function ProtectedRoute({ allowedRoles }: Props) {
   }
 
   if (allowedRoles && !allowedRoles.includes(user!.role)) {
-    return <Navigate to="/login" replace />
+    return <Navigate to={homeRoute(user!.role)} replace />
   }
 
   return <Outlet />

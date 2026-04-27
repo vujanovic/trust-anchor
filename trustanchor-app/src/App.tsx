@@ -10,6 +10,7 @@ import AppAdminSettings from "@/pages/admin/app-admin-settings.tsx"
 import AppAdminDashboard from "@/pages/admin/app-admin-dashboard.tsx"
 import AppAdminOrganizations from "@/pages/admin/app-admin-organizations.tsx"
 import AppUserMain from "@/pages/user/app-user-main"
+import AppCAUserMain from "@/pages/ca/app-ca-user-main"
 import AppRegistration from "@/pages/unauthenticated/app-registration.tsx"
 import AppLogin from "@/pages/unauthenticated/app-login.tsx"
 
@@ -32,10 +33,12 @@ export function App() {
         </Route>
       </Route>
 
-      <Route
-        element={<ProtectedRoute allowedRoles={["USER", "CA_USER", "ADMIN"]} />}
-      >
+      <Route element={<ProtectedRoute allowedRoles={["USER", "ADMIN"]} />}>
         <Route path="user" element={<AppUserMain />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={["CA_USER"]} />}>
+        <Route path="ca" element={<AppCAUserMain />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
