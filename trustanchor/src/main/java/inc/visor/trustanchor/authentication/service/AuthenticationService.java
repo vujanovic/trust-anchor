@@ -5,6 +5,7 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import inc.visor.trustanchor.authentication.dto.LoginDto;
 import inc.visor.trustanchor.authentication.dto.LoginResponseDto;
@@ -51,6 +52,7 @@ public class AuthenticationService {
         return user;
     }
 
+    @Transactional
     public LoginResponseDto login(LoginDto loginInfo) {
         var authentication = authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(loginInfo.getEmail(), loginInfo.getPassword())
@@ -67,6 +69,7 @@ public class AuthenticationService {
         return new LoginResponseDto(accessToken, refreshToken.getToken(), new UserDto(user));
     }
 
+    @Transactional
     public LoginResponseDto refresh(RefreshRequestDto dto) {
         RefreshToken oldToken = refreshTokenService.validate(dto.getRefreshToken());
         User user = oldToken.getUser();
