@@ -15,5 +15,6 @@ export const getOrganizationCertificates = (orgId?: number) =>
 
 export const getAvailableIssuers = () =>
   service.get<CertificateDto[]>("/issuers")
+
 export const issueCertificate = (dto: IssueCertificateRequest) =>
   service.post<CertificateDto>("/issue", dto)

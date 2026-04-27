@@ -11,7 +11,9 @@ import java.security.Security;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -82,14 +84,8 @@ public class CertificateGenerationService {
                     "Issuer must be a CA certificate (ROOT or INTERMEDIATE)");
         }
 
-        // 3. Must be currently valid (ACTIVE + within date range)
-        if (!issuerCert.isValid()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Issuer certificate is expired or revoked");
-        }
-
-        // 4. Verify digital signature
-        verifyIssuerSignature(issuerCert);
+        // 3. Validate the full issuer chain up to the root
+        validateIssuerChain(issuerCert);
 
         // 5. CA_USER may only use issuers from their own organization
         if (currentUser.getUser().getUserRole() == UserRole.CA_USER) {
@@ -112,7 +108,7 @@ public class CertificateGenerationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "notBefore must be before notAfter");
         }
-        if (dto.getNotBefore().isBefore(issuerCert.getNotBefore())) {
+        if (dto.getNotBefore().isBefore(issuerCert.getNotBefore().truncatedTo(ChronoUnit.MINUTES))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Certificate notBefore cannot precede issuer notBefore ("
                             + issuerCert.getNotBefore() + ")");
@@ -123,10 +119,14 @@ public class CertificateGenerationService {
                             + issuerCert.getNotAfter() + ")");
         }
 
+        // 8. Enforce extension constraints based on certificate type — backend is authoritative.
+        // A client could send isCA=true with certificateType=END_ENTITY; that must be rejected.
+        ExtensionsDto ext = normalizeExtensions(dto.getExtensions(), dto.getCertificateType());
+
         try {
             long orgId = currentUser.getUser().getOrganization().getId();
 
-            // 8. Decrypt issuer private key
+            // 9. Decrypt issuer private key
             java.security.PrivateKey issuerPrivKey = decryptCertificatePrivateKey(issuerCert);
 
             // 9. Parse issuer X.509 certificate
@@ -161,7 +161,7 @@ public class CertificateGenerationService {
                     issuerX509, serial, notBefore, notAfter, subjectDN, keyPair.getPublic());
 
             // 14. Add extensions
-            addExtensions(certBuilder, dto.getExtensions(), keyPair.getPublic(), issuerX509.getPublicKey());
+            addExtensions(certBuilder, ext, keyPair.getPublic(), issuerX509.getPublicKey());
 
             // 15. Sign
             ContentSigner signer = new JcaContentSignerBuilder(SIGN_ALGORITHM)
@@ -192,7 +192,7 @@ public class CertificateGenerationService {
             cert.setPublicKey(keyPair.getPublic().getEncoded());
             cert.setPrivateKeyEncrypted(packedPrivKey);
             cert.setStatus(CertificateStatus.ACTIVE);
-            cert.setExtensions(extensionsToJson(dto.getExtensions()));
+            cert.setExtensions(extensionsToJson(ext));
 
             return certificateRepository.save(cert);
 
@@ -203,16 +203,49 @@ public class CertificateGenerationService {
         }
     }
 
-    private void verifyIssuerSignature(Certificate issuerCert) {
-        try {
-            X509Certificate x509 = parseX509(issuerCert.getCertificateContent());
-            PublicKey verifyKey = (issuerCert.getIssuerCertificate() == null)
-                    ? x509.getPublicKey()
-                    : parseX509(issuerCert.getIssuerCertificate().getCertificateContent()).getPublicKey();
-            x509.verify(verifyKey, BouncyCastleProvider.PROVIDER_NAME);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Issuer certificate has an invalid digital signature");
+    private void validateIssuerChain(Certificate issuerCert) {
+        Certificate current = issuerCert;
+        int depth = 0;
+
+        while (current != null) {
+            if (++depth > 20) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate chain exceeds maximum allowed depth");
+            }
+
+            String cn = current.getCommonName();
+
+            if (current.getStatus() == CertificateStatus.REVOKED) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate in chain has been revoked: " + cn);
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            if (now.isBefore(current.getNotBefore().truncatedTo(ChronoUnit.MINUTES)) || now.isAfter(current.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate in chain is outside its validity period: " + cn);
+            }
+
+            if (!current.isCACertificate()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate in chain is not a CA certificate: " + cn);
+            }
+
+            try {
+                X509Certificate x509 = parseX509(current.getCertificateContent());
+                Certificate parent = current.getIssuerCertificate();
+                PublicKey verifyKey = (parent == null)
+                        ? x509.getPublicKey()
+                        : parseX509(parent.getCertificateContent()).getPublicKey();
+                x509.verify(verifyKey, BouncyCastleProvider.PROVIDER_NAME);
+            } catch (ResponseStatusException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate in chain has an invalid digital signature: " + cn);
+            }
+
+            current = current.getIssuerCertificate();
         }
     }
 
@@ -272,6 +305,31 @@ public class CertificateGenerationService {
         if (Boolean.TRUE.equals(ext.dataEncipherment()))  bits |= KeyUsage.dataEncipherment;
         if (Boolean.TRUE.equals(ext.nonRepudiation()))    bits |= KeyUsage.nonRepudiation;
         return bits;
+    }
+
+    private ExtensionsDto normalizeExtensions(ExtensionsDto ext, CertificateType certType) {
+        return switch (certType) {
+            case ROOT, INTERMEDIATE -> new ExtensionsDto(
+                true,                                         // isCA forced true
+                true,                                         // keyCertSign forced true
+                ext.crlSign(),
+                ext.digitalSignature(),
+                ext.keyEncipherment(),
+                ext.dataEncipherment(),
+                ext.nonRepudiation(),
+                ext.extendedKeyUsages()
+            );
+            case END_ENTITY -> new ExtensionsDto(
+                false,                                        // isCA forced false
+                false,                                        // keyCertSign forced false
+                false,                                        // crlSign forced false
+                ext.digitalSignature(),
+                ext.keyEncipherment(),
+                ext.dataEncipherment(),
+                ext.nonRepudiation(),
+                ext.extendedKeyUsages()
+            );
+        };
     }
 
     private String extensionsToJson(ExtensionsDto ext) {

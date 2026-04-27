@@ -45,7 +45,9 @@ public class CertificateService {
             case CA_USER -> certificateRepository.findByOrganizationIdAndCertificateTypeInAndStatus(organizationId, caTypes, CertificateStatus.ACTIVE);
             default      -> List.of();
         };
-        return candidates.stream().filter(Certificate::isValid).toList();
+        return candidates.stream()
+                .filter(c -> !java.time.LocalDateTime.now().isAfter(c.getNotAfter()))
+                .toList();
     }
 
     public Certificate getCertificateForOrganization(Long certificateId, Long organizationId) {

@@ -140,6 +140,17 @@ export default function AppCAUserMain() {
       .finally(() => setLoadingCerts(false))
   }
 
+  const loadIssuers = () => {
+    getAvailableIssuers()
+      .then((data) => {
+        setIssuers(data)
+        setIssuersLoaded(true)
+      })
+      .catch(() => {
+        setIssuersLoaded(true) // stop retrying on error;
+      })
+  }
+
   useEffect(() => {
     getOrganizationCertificates()
       .then(setCerts)
@@ -148,10 +159,7 @@ export default function AppCAUserMain() {
 
   useEffect(() => {
     if (activeTab !== "issue" || issuersLoaded) return
-    getAvailableIssuers().then((data) => {
-      setIssuers(data)
-      setIssuersLoaded(true)
-    })
+    loadIssuers()
   }, [activeTab, issuersLoaded])
 
   const total = certs.length
@@ -228,6 +236,7 @@ export default function AppCAUserMain() {
       setSubmitSuccess(true)
       setForm(makeForm())
       loadCerts()
+      loadIssuers()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message
@@ -577,15 +586,26 @@ export default function AppCAUserMain() {
                       <p className="mb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase">
                         Basic Constraints
                       </p>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={form.extensions.isCA}
-                          onChange={(e) => patchExt("isCA", e.target.checked)}
-                          className="accent-primary"
-                        />
-                        CA Certificate (BasicConstraints isCA=true)
-                      </label>
+                      {(() => {
+                        const locked = true // isCA is always derived from type
+                        return (
+                          <label className="flex cursor-not-allowed items-center gap-2 text-sm opacity-60">
+                            <input
+                              type="checkbox"
+                              checked={form.extensions.isCA}
+                              disabled={locked}
+                              readOnly
+                              className="accent-primary"
+                            />
+                            CA Certificate (BasicConstraints isCA=true)
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                              {form.certificateType === "INTERMEDIATE"
+                                ? "required"
+                                : "not allowed"}
+                            </span>
+                          </label>
+                        )
+                      })()}
                     </div>
 
                     {/* Key Usage */}
@@ -615,22 +635,39 @@ export default function AppCAUserMain() {
                               label: "Non-Repudiation",
                             },
                           ] as { field: BoolExtKey; label: string }[]
-                        ).map(({ field, label }) => (
-                          <label
-                            key={field}
-                            className="flex cursor-pointer items-center gap-2 text-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={form.extensions[field]}
-                              onChange={(e) =>
-                                patchExt(field, e.target.checked)
-                              }
-                              className="accent-primary"
-                            />
-                            {label}
-                          </label>
-                        ))}
+                        ).map(({ field, label }) => {
+                          const isEndEntity =
+                            form.certificateType === "END_ENTITY"
+                          // keyCertSign: locked always (mirrors isCA)
+                          // crlSign:     locked false for END_ENTITY, editable for INTERMEDIATE
+                          const locked =
+                            field === "keyCertSign" ||
+                            (field === "crlSign" && isEndEntity)
+                          return (
+                            <label
+                              key={field}
+                              className={`flex items-center gap-2 text-sm ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={form.extensions[field]}
+                                onChange={(e) =>
+                                  !locked && patchExt(field, e.target.checked)
+                                }
+                                disabled={locked}
+                                className="accent-primary"
+                              />
+                              {label}
+                              {locked && (
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                  {form.extensions[field]
+                                    ? "required"
+                                    : "not allowed"}
+                                </span>
+                              )}
+                            </label>
+                          )
+                        })}
                       </div>
                     </div>
 
