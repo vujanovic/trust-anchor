@@ -21,6 +21,8 @@ Get-Content $envFile | ForEach-Object {
     }
 }
 
+$vaultAddr = if ($env:VAULT_ADDR) { $env:VAULT_ADDR } else { "http://localhost:8200" }
+
 # Start Docker
 Write-Host "Starting Docker Compose..." -ForegroundColor Yellow
 docker compose up -d
@@ -29,22 +31,42 @@ docker compose up -d
 Write-Host "Waiting for Vault to start..." -ForegroundColor Yellow
 Start-Sleep -Seconds 3
 
-# Check if Vault is sealed
-$status = vault status -format=json 2>$null | ConvertFrom-Json
-
-if ($null -eq $status) {
-    Write-Host "❌ Vault is not responding. Check if Docker is running." -ForegroundColor Red
-    exit 1
+# Check Vault status via REST API (vault CLI is blocked by Application Control policy)
+Write-Host "Checking Vault status..." -ForegroundColor Yellow
+$isSealed = $false
+try {
+    $health = Invoke-RestMethod -Uri "$vaultAddr/v1/sys/health" -Method Get -ErrorAction Stop
+    $isSealed = $health.sealed
+} catch {
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    if ($statusCode -eq 503) {
+        $isSealed = $true
+    } else {
+        Write-Host "❌ Vault is not responding (HTTP $statusCode). Check if Docker is running." -ForegroundColor Red
+        exit 1
+    }
 }
 
-if ($status.sealed) {
+if ($isSealed) {
     Write-Host "Unsealing Vault..." -ForegroundColor Yellow
-    vault operator unseal $env:VAULT_UNSEAL_KEY | Out-Null
 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Vault unsealed successfully!" -ForegroundColor Green
-    } else {
-        Write-Host "❌ Failed to unseal Vault" -ForegroundColor Red
+    if ([string]::IsNullOrWhiteSpace($env:VAULT_UNSEAL_KEY)) {
+        Write-Host "❌ VAULT_UNSEAL_KEY is missing from .env" -ForegroundColor Red
+        exit 1
+    }
+
+    try {
+        $body = @{ key = $env:VAULT_UNSEAL_KEY } | ConvertTo-Json
+        $result = Invoke-RestMethod -Uri "$vaultAddr/v1/sys/unseal" `
+            -Method Put -Body $body -ContentType "application/json" -ErrorAction Stop
+        if ($result.sealed -eq $false) {
+            Write-Host "✅ Vault unsealed successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "❌ Vault is still sealed after unseal attempt" -ForegroundColor Red
+            exit 1
+        }
+    } catch {
+        Write-Host "❌ Failed to unseal Vault: $_" -ForegroundColor Red
         exit 1
     }
 } else {
@@ -57,6 +79,7 @@ Write-Host "Validating secrets..." -ForegroundColor Yellow
 $missingVars = @()
 if ([string]::IsNullOrWhiteSpace($env:JWT_SECRET)) { $missingVars += "JWT_SECRET" }
 if ([string]::IsNullOrWhiteSpace($env:MASTER_ENCRYPTION_KEY)) { $missingVars += "MASTER_ENCRYPTION_KEY" }
+if ([string]::IsNullOrWhiteSpace($env:VAULT_TOKEN)) { $missingVars += "VAULT_TOKEN" }
 
 if ($missingVars.Count -gt 0) {
     Write-Host "❌ Missing or empty required variables in .env:" -ForegroundColor Red
@@ -66,14 +89,33 @@ if ($missingVars.Count -gt 0) {
 }
 
 Write-Host "Syncing secrets to Vault..." -ForegroundColor Yellow
-vault kv patch secret/application `
-    jwt.secret="$env:JWT_SECRET" `
-    master.encryption.key="$env:MASTER_ENCRYPTION_KEY" | Out-Null
+$headers = @{ "X-Vault-Token" = $env:VAULT_TOKEN }
+$body = @{
+    data = @{
+        "jwt.secret"            = $env:JWT_SECRET
+        "master.encryption.key" = $env:MASTER_ENCRYPTION_KEY
+    }
+} | ConvertTo-Json
 
-if ($LASTEXITCODE -eq 0) {
+try {
+    Invoke-RestMethod -Uri "$vaultAddr/v1/secret/data/application" `
+        -Method Post -Headers $headers -Body $body `
+        -ContentType "application/json" -ErrorAction Stop | Out-Null
     Write-Host "✅ Secrets synced to Vault" -ForegroundColor Green
-} else {
-    Write-Host "❌ Failed to sync secrets to Vault" -ForegroundColor Red
+
+    # Refresh application-local.properties (no BOM - Java Properties.load requires clean UTF-8)
+    $localPropsPath = Join-Path $PSScriptRoot "application-local.properties"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($localPropsPath, "VAULT_TOKEN=$($env:VAULT_TOKEN)`nVAULT_ADDR=$vaultAddr`n", $utf8NoBom)
+    Write-Host "✅ application-local.properties refreshed for Spring Boot" -ForegroundColor Green
+} catch {
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    if ($statusCode -eq 403) {
+        Write-Host "❌ Vault token is invalid or expired (403 Forbidden)" -ForegroundColor Red
+        Write-Host "   Re-run .\init-vault.ps1 to reinitialize Vault with a fresh token." -ForegroundColor Yellow
+    } else {
+        Write-Host "❌ Failed to sync secrets (HTTP $statusCode): $_" -ForegroundColor Red
+    }
     exit 1
 }
 
