@@ -55,4 +55,8 @@ public class AnchorUserDetails implements UserDetails {
     public boolean isEnabled() {
         return user.getUserStatus() == UserStatus.ACTIVE;
     }
+
+    public long getId() {
+        return user.getId();
+    }
 }
