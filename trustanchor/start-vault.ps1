@@ -52,6 +52,32 @@ if ($status.sealed) {
 }
 
 Write-Host ""
+Write-Host "Validating secrets..." -ForegroundColor Yellow
+
+$missingVars = @()
+if ([string]::IsNullOrWhiteSpace($env:JWT_SECRET)) { $missingVars += "JWT_SECRET" }
+if ([string]::IsNullOrWhiteSpace($env:MASTER_ENCRYPTION_KEY)) { $missingVars += "MASTER_ENCRYPTION_KEY" }
+
+if ($missingVars.Count -gt 0) {
+    Write-Host "❌ Missing or empty required variables in .env:" -ForegroundColor Red
+    $missingVars | ForEach-Object { Write-Host "   - $_" -ForegroundColor Red }
+    Write-Host "Add them to .env and re-run this script." -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "Syncing secrets to Vault..." -ForegroundColor Yellow
+vault kv patch secret/application `
+    jwt.secret="$env:JWT_SECRET" `
+    master.encryption.key="$env:MASTER_ENCRYPTION_KEY" | Out-Null
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "✅ Secrets synced to Vault" -ForegroundColor Green
+} else {
+    Write-Host "❌ Failed to sync secrets to Vault" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
 Write-Host "=== Vault is ready! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "You can now start your Spring Boot application" -ForegroundColor Yellow

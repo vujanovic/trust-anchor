@@ -1,21 +1,46 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Anchor,
   ArrowRight,
+  Eye,
+  EyeOff,
   Fingerprint,
   Key,
   Lock,
   Mail,
   Shield,
 } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function AppLogin() {
   const navigate = useNavigate()
+  const { login, user, isAuthenticated } = useAuth()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!isAuthenticated || !user) return
+    if (user.role === "ADMIN") navigate("/admin", { replace: true })
+    else navigate("/user", { replace: true })
+  }, [isAuthenticated, user, navigate])
+
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    navigate("/admin/organizations")
+    setError(null)
+    setIsLoading(true)
+    try {
+      await login(email, password)
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message
+      setError(message ?? "Login failed. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -46,6 +71,8 @@ export default function AppLogin() {
                     type="email"
                     required
                     placeholder="admin@trustanchor.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
                 </div>
@@ -65,19 +92,41 @@ export default function AppLogin() {
                 <div className="relative">
                   <Key className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     placeholder="••••••••"
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-10 pl-10 text-sm transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
+              {error && (
+                <p className="text-center text-sm font-medium text-red-500">
+                  {error}
+                </p>
+              )}
               <button
                 type="submit"
-                className="group relative mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:shadow-none dark:hover:bg-slate-100"
+                disabled={isLoading}
+                className="group relative mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:shadow-none dark:hover:bg-slate-100"
               >
-                Unlock Vault
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                {isLoading ? "Authenticating..." : "Unlock Vault"}
+                {!isLoading && (
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                )}
               </button>
             </form>
             <div className="mt-8 border-t border-slate-100 pt-6 dark:border-slate-800">
