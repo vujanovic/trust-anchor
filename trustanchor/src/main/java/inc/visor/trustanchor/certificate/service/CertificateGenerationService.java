@@ -109,7 +109,16 @@ public class CertificateGenerationService {
                     "CA users may only issue INTERMEDIATE or END_ENTITY certificates");
         }
 
-        // 7. New cert's validity must not exceed issuer's validity
+        // 7. Validity range must be coherent and fall within issuer's validity window
+        if (!dto.getNotBefore().isBefore(dto.getNotAfter())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "notBefore must be before notAfter");
+        }
+        if (dto.getNotBefore().isBefore(issuerCert.getNotBefore())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Certificate notBefore cannot precede issuer notBefore ("
+                            + issuerCert.getNotBefore() + ")");
+        }
         if (dto.getNotAfter().isAfter(issuerCert.getNotAfter())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Certificate validity period cannot exceed issuer validity period ("
@@ -251,7 +260,7 @@ public class CertificateGenerationService {
             }
             if (!purposes.isEmpty()) {
                 builder.addExtension(Extension.extendedKeyUsage, false,
-                        new ExtendedKeyUsage(purposes.toArray(new KeyPurposeId[0])));
+                        new ExtendedKeyUsage(purposes.toArray(KeyPurposeId[]::new)));
             }
         }
     }
@@ -276,6 +285,9 @@ public class CertificateGenerationService {
     }
 
     private EncryptedData unpackEncrypted(byte[] packed) {
+        if (packed.length < NONCE_LENGTH + AUTH_TAG_LENGTH) {
+            throw new IllegalArgumentException("Invalid packed key length: " + packed.length);
+        }
         byte[] nonce      = new byte[NONCE_LENGTH];
         byte[] authTag    = new byte[AUTH_TAG_LENGTH];
         byte[] ciphertext = new byte[packed.length - NONCE_LENGTH - AUTH_TAG_LENGTH];

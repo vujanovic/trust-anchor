@@ -19,7 +19,7 @@ try {
     $initResult = Invoke-RestMethod -Uri "$vaultAddr/v1/sys/init" `
         -Method Post -Body $initBody -ContentType "application/json" -ErrorAction Stop
 } catch {
-    Write-Host "❌ Failed to initialize Vault: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to initialize Vault: $_" -ForegroundColor Red
     Write-Host "   Is the Docker container running?" -ForegroundColor Yellow
     exit 1
 }
@@ -33,20 +33,17 @@ Write-Host "Unseal Key: $unsealKey" -ForegroundColor Green
 Write-Host "Root Token: $rootToken" -ForegroundColor Green
 Write-Host ""
 
-# Write initial .env
-$envPath = Join-Path $PSScriptRoot ".env"
-@"
-VAULT_ADDR=http://localhost:8200
-VAULT_TOKEN=$rootToken
-VAULT_UNSEAL_KEY=$unsealKey
-"@ | Out-File -FilePath $envPath -Encoding UTF8
-Write-Host "✅ .env file created at: $envPath" -ForegroundColor Green
-
-# Write application-local.properties for Spring Boot (no BOM - Java Properties.load requires clean UTF-8)
-$localPropsPath = Join-Path $PSScriptRoot "application-local.properties"
+# Write initial .env and application-local.properties without BOM
+# (Java Properties.load and most shell parsers reject UTF-8 BOM)
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+$envPath = Join-Path $PSScriptRoot ".env"
+[System.IO.File]::WriteAllText($envPath, "VAULT_ADDR=http://localhost:8200`nVAULT_TOKEN=$rootToken`nVAULT_UNSEAL_KEY=$unsealKey`n", $utf8NoBom)
+Write-Host "[OK] .env file created at: $envPath" -ForegroundColor Green
+
+# Write application-local.properties for Spring Boot
+$localPropsPath = Join-Path $PSScriptRoot "application-local.properties"
 [System.IO.File]::WriteAllText($localPropsPath, "VAULT_TOKEN=$rootToken`nVAULT_ADDR=http://localhost:8200`n", $utf8NoBom)
-Write-Host "✅ application-local.properties written for Spring Boot" -ForegroundColor Green
+Write-Host "[OK] application-local.properties written for Spring Boot" -ForegroundColor Green
 Write-Host ""
 
 # Unseal Vault
@@ -56,13 +53,13 @@ try {
     $unsealResult = Invoke-RestMethod -Uri "$vaultAddr/v1/sys/unseal" `
         -Method Put -Body $unsealBody -ContentType "application/json" -ErrorAction Stop
     if ($unsealResult.sealed -eq $false) {
-        Write-Host "✅ Vault unsealed successfully!" -ForegroundColor Green
+        Write-Host "[OK] Vault unsealed successfully!" -ForegroundColor Green
     } else {
-        Write-Host "❌ Vault is still sealed" -ForegroundColor Red
+        Write-Host "[ERROR] Vault is still sealed" -ForegroundColor Red
         exit 1
     }
 } catch {
-    Write-Host "❌ Failed to unseal Vault: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to unseal Vault: $_" -ForegroundColor Red
     exit 1
 }
 
@@ -75,13 +72,15 @@ try {
     Invoke-RestMethod -Uri "$vaultAddr/v1/sys/mounts/secret" `
         -Method Post -Headers $headers -Body $kvBody `
         -ContentType "application/json" -ErrorAction Stop | Out-Null
-    Write-Host "✅ KV v2 enabled at secret/" -ForegroundColor Green
+    Write-Host "[OK] KV v2 enabled at secret/" -ForegroundColor Green
 } catch {
-    $statusCode = $_.Exception.Response.StatusCode.value__
+    $response = $_.Exception.Response
+    $statusCode = if ($response) { $response.StatusCode.value__ } else { $null }
     if ($statusCode -eq 400) {
         Write-Host "[INFO] KV v2 already enabled at secret/ (skipping)" -ForegroundColor Yellow
     } else {
-        Write-Host "❌ Failed to enable KV v2 (HTTP $statusCode): $_" -ForegroundColor Red
+        $detail = if ($statusCode) { "HTTP $statusCode" } else { "no HTTP response" }
+        Write-Host "[ERROR] Failed to enable KV v2 ($detail): $_" -ForegroundColor Red
         exit 1
     }
 }
@@ -115,9 +114,9 @@ try {
     Invoke-RestMethod -Uri "$vaultAddr/v1/secret/data/application" `
         -Method Post -Headers $headers -Body $secretBody `
         -ContentType "application/json" -ErrorAction Stop | Out-Null
-    Write-Host "✅ Secrets stored in Vault" -ForegroundColor Green
+    Write-Host "[OK] Secrets stored in Vault" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Failed to store secrets: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to store secrets: $_" -ForegroundColor Red
     exit 1
 }
 
@@ -136,13 +135,13 @@ foreach ($path in @("secret/data/trustanchor/dev", "secret/data/trustanchor", "s
 Write-Host ""
 Write-Host "=== Setup Complete! ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "✅ Vault initialized and unsealed" -ForegroundColor Green
-Write-Host "✅ KV v2 secrets engine enabled" -ForegroundColor Green
-Write-Host "✅ JWT secret generated and stored" -ForegroundColor Green
-Write-Host "✅ Encryption key generated and stored" -ForegroundColor Green
-Write-Host "✅ .env file created" -ForegroundColor Green
+Write-Host "[OK] Vault initialized and unsealed" -ForegroundColor Green
+Write-Host "[OK] KV v2 secrets engine enabled" -ForegroundColor Green
+Write-Host "[OK] JWT secret generated and stored" -ForegroundColor Green
+Write-Host "[OK] Encryption key generated and stored" -ForegroundColor Green
+Write-Host "[OK] .env file created" -ForegroundColor Green
 Write-Host ""
-Write-Host "⚠️  Save the unseal key and root token somewhere safe!" -ForegroundColor Red
+Write-Host "[WARNING] Save the unseal key and root token somewhere safe!" -ForegroundColor Red
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Save the unseal key and root token somewhere safe"

@@ -7,7 +7,7 @@ Write-Host ""
 # Load environment variables
 $envFile = Join-Path $PSScriptRoot ".env"
 if (-not (Test-Path $envFile)) {
-    Write-Host "❌ .env file not found!" -ForegroundColor Red
+    Write-Host "[ERROR] .env file not found!" -ForegroundColor Red
     Write-Host "Run .\init-vault.ps1 first to set up Vault" -ForegroundColor Yellow
     exit 1
 }
@@ -38,11 +38,13 @@ try {
     $health = Invoke-RestMethod -Uri "$vaultAddr/v1/sys/health" -Method Get -ErrorAction Stop
     $isSealed = $health.sealed
 } catch {
-    $statusCode = $_.Exception.Response.StatusCode.value__
+    $response = $_.Exception.Response
+    $statusCode = if ($response) { $response.StatusCode.value__ } else { $null }
     if ($statusCode -eq 503) {
         $isSealed = $true
     } else {
-        Write-Host "❌ Vault is not responding (HTTP $statusCode). Check if Docker is running." -ForegroundColor Red
+        $detail = if ($statusCode) { "HTTP $statusCode" } else { "no HTTP response - is Docker running?" }
+        Write-Host "[ERROR] Vault is not responding ($detail)" -ForegroundColor Red
         exit 1
     }
 }
@@ -51,7 +53,7 @@ if ($isSealed) {
     Write-Host "Unsealing Vault..." -ForegroundColor Yellow
 
     if ([string]::IsNullOrWhiteSpace($env:VAULT_UNSEAL_KEY)) {
-        Write-Host "❌ VAULT_UNSEAL_KEY is missing from .env" -ForegroundColor Red
+        Write-Host "[ERROR] VAULT_UNSEAL_KEY is missing from .env" -ForegroundColor Red
         exit 1
     }
 
@@ -60,17 +62,17 @@ if ($isSealed) {
         $result = Invoke-RestMethod -Uri "$vaultAddr/v1/sys/unseal" `
             -Method Put -Body $body -ContentType "application/json" -ErrorAction Stop
         if ($result.sealed -eq $false) {
-            Write-Host "✅ Vault unsealed successfully!" -ForegroundColor Green
+            Write-Host "[OK] Vault unsealed successfully!" -ForegroundColor Green
         } else {
-            Write-Host "❌ Vault is still sealed after unseal attempt" -ForegroundColor Red
+            Write-Host "[ERROR] Vault is still sealed after unseal attempt" -ForegroundColor Red
             exit 1
         }
     } catch {
-        Write-Host "❌ Failed to unseal Vault: $_" -ForegroundColor Red
+        Write-Host "[ERROR] Failed to unseal Vault: $_" -ForegroundColor Red
         exit 1
     }
 } else {
-    Write-Host "✅ Vault is already unsealed" -ForegroundColor Green
+    Write-Host "[OK] Vault is already unsealed" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -82,7 +84,7 @@ if ([string]::IsNullOrWhiteSpace($env:MASTER_ENCRYPTION_KEY)) { $missingVars += 
 if ([string]::IsNullOrWhiteSpace($env:VAULT_TOKEN)) { $missingVars += "VAULT_TOKEN" }
 
 if ($missingVars.Count -gt 0) {
-    Write-Host "❌ Missing or empty required variables in .env:" -ForegroundColor Red
+    Write-Host "[ERROR] Missing or empty required variables in .env:" -ForegroundColor Red
     $missingVars | ForEach-Object { Write-Host "   - $_" -ForegroundColor Red }
     Write-Host "Add them to .env and re-run this script." -ForegroundColor Yellow
     exit 1
@@ -101,20 +103,22 @@ try {
     Invoke-RestMethod -Uri "$vaultAddr/v1/secret/data/application" `
         -Method Post -Headers $headers -Body $body `
         -ContentType "application/json" -ErrorAction Stop | Out-Null
-    Write-Host "✅ Secrets synced to Vault" -ForegroundColor Green
+    Write-Host "[OK] Secrets synced to Vault" -ForegroundColor Green
 
     # Refresh application-local.properties (no BOM - Java Properties.load requires clean UTF-8)
     $localPropsPath = Join-Path $PSScriptRoot "application-local.properties"
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($localPropsPath, "VAULT_TOKEN=$($env:VAULT_TOKEN)`nVAULT_ADDR=$vaultAddr`n", $utf8NoBom)
-    Write-Host "✅ application-local.properties refreshed for Spring Boot" -ForegroundColor Green
+    Write-Host "[OK] application-local.properties refreshed for Spring Boot" -ForegroundColor Green
 } catch {
-    $statusCode = $_.Exception.Response.StatusCode.value__
+    $response = $_.Exception.Response
+    $statusCode = if ($response) { $response.StatusCode.value__ } else { $null }
     if ($statusCode -eq 403) {
-        Write-Host "❌ Vault token is invalid or expired (403 Forbidden)" -ForegroundColor Red
+        Write-Host "[ERROR] Vault token is invalid or expired (403 Forbidden)" -ForegroundColor Red
         Write-Host "   Re-run .\init-vault.ps1 to reinitialize Vault with a fresh token." -ForegroundColor Yellow
     } else {
-        Write-Host "❌ Failed to sync secrets (HTTP $statusCode): $_" -ForegroundColor Red
+        $detail = if ($statusCode) { "HTTP $statusCode" } else { "no HTTP response" }
+        Write-Host "[ERROR] Failed to sync secrets ($detail): $_" -ForegroundColor Red
     }
     exit 1
 }
