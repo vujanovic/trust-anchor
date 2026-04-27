@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import {
   Anchor,
   ArrowRight,
+  Eye,
+  EyeOff,
   Fingerprint,
   Key,
   Lock,
@@ -18,6 +20,7 @@ export default function AppLogin() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated || !user) return
@@ -89,13 +92,25 @@ export default function AppLogin() {
                 <div className="relative">
                   <Key className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-10 pl-10 text-sm transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
               {error && (

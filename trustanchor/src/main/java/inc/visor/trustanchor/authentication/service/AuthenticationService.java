@@ -1,7 +1,9 @@
 package inc.visor.trustanchor.authentication.service;
 
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
 
 import inc.visor.trustanchor.authentication.dto.LoginDto;
@@ -27,16 +29,19 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final UserDetailsService userDetailsService;
 
     public AuthenticationService(UserService userService, EmailService emailService,
             OrganizationService organizationService, AuthenticationManager authenticationManager,
-            JwtService jwtService, RefreshTokenService refreshTokenService) {
+            JwtService jwtService, RefreshTokenService refreshTokenService,
+            UserDetailsService userDetailsService) {
         this.userService = userService;
         this.emailService = emailService;
         this.organizationService = organizationService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.userDetailsService = userDetailsService;
     }
 
     public User register(RegistrationDto dto) {
@@ -47,7 +52,6 @@ public class AuthenticationService {
     }
 
     public LoginResponseDto login(LoginDto loginInfo) {
-        // Throws BadCredentialsException if credentials are wrong, DisabledException if not ACTIVE
         var authentication = authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(loginInfo.getEmail(), loginInfo.getPassword())
         );
@@ -67,13 +71,18 @@ public class AuthenticationService {
         RefreshToken oldToken = refreshTokenService.validate(dto.getRefreshToken());
         User user = oldToken.getUser();
 
+        AnchorUserDetails userDetails = (AnchorUserDetails) userDetailsService.loadUserByUsername(user.getEmail());
+        if (!userDetails.isEnabled()) {
+            refreshTokenService.revokeAllTokensForUser(user);
+            throw new DisabledException("Account is disabled");
+        }
+
         refreshTokenService.revoke(oldToken);
 
-        AnchorUserDetails userDetails = new AnchorUserDetails(user);
         String accessToken = jwtService.generateAccessToken(userDetails);
-        RefreshToken newRefreshToken = refreshTokenService.create(user);
+        RefreshToken newRefreshToken = refreshTokenService.create(userDetails.getUser());
 
-        return new LoginResponseDto(accessToken, newRefreshToken.getToken(), new UserDto(user));
+        return new LoginResponseDto(accessToken, newRefreshToken.getToken(), new UserDto(userDetails.getUser()));
     }
 
     public void logout(RefreshRequestDto dto) {

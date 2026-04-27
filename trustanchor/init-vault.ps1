@@ -48,16 +48,27 @@ Write-Host ""
 Write-Host "Enabling KV v2 secrets engine..." -ForegroundColor Yellow
 vault secrets enable -path=secret kv-v2
 
-# Generate and store encryption key
+# Generate secrets using PowerShell's built-in crypto (no openssl dependency)
 Write-Host ""
-Write-Host "Generating encryption key..." -ForegroundColor Yellow
-$encryptionKey = openssl rand -hex 32
+Write-Host "Generating secrets..." -ForegroundColor Yellow
 
-Write-Host "Storing encryption key in Vault..." -ForegroundColor Yellow
-vault kv put secret/application master.encryption.key=$encryptionKey
+# JWT secret: 32 random bytes encoded as Base64 (required by JwtService / HMAC-SHA256)
+$jwtBytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($jwtBytes)
+$jwtSecret = [Convert]::ToBase64String($jwtBytes)
 
-# Append encryption key to .env so start-vault.ps1 can re-sync it on every startup
-Add-Content -Path $envPath -Value "JWT_SECRET=$env:JWT_SECRET"
+# Master encryption key: 32 random bytes encoded as lowercase hex
+$encBytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($encBytes)
+$encryptionKey = ($encBytes | ForEach-Object { $_.ToString("x2") }) -join ""
+
+Write-Host "Storing secrets in Vault..." -ForegroundColor Yellow
+vault kv put secret/application `
+    jwt.secret="$jwtSecret" `
+    master.encryption.key="$encryptionKey"
+
+# Append both secrets to .env so start-vault.ps1 can re-sync them on every startup
+Add-Content -Path $envPath -Value "JWT_SECRET=$jwtSecret"
 Add-Content -Path $envPath -Value "MASTER_ENCRYPTION_KEY=$encryptionKey"
 
 # Create other paths Spring looks for
@@ -70,11 +81,11 @@ Write-Host "=== Setup Complete! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "✅ Vault initialized and unsealed" -ForegroundColor Green
 Write-Host "✅ KV v2 secrets engine enabled" -ForegroundColor Green
+Write-Host "✅ JWT secret generated and stored" -ForegroundColor Green
 Write-Host "✅ Encryption key generated and stored" -ForegroundColor Green
 Write-Host "✅ .env file created" -ForegroundColor Green
 Write-Host ""
-Write-Host "Encryption Key: $encryptionKey" -ForegroundColor Yellow
-Write-Host "⚠️  Save this key in your password manager!" -ForegroundColor Red
+Write-Host "⚠️  Save the unseal key and root token somewhere safe!" -ForegroundColor Red
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Save the unseal key and root token somewhere safe"

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import inc.visor.trustanchor.authentication.entity.RefreshToken;
 import inc.visor.trustanchor.authentication.repository.RefreshTokenRepository;
+import inc.visor.trustanchor.exception.InvalidTokenException;
 import inc.visor.trustanchor.user.entity.User;
 
 @Service
@@ -48,10 +49,10 @@ public class RefreshTokenService {
 
     public RefreshToken validate(String token) {
         RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
-            .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+            .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
 
         if (refreshToken.isRevoked() || refreshToken.getExpiresAt().isBefore(Instant.now())) {
-            throw new RuntimeException("Refresh token is expired or revoked");
+            throw new InvalidTokenException("Refresh token is expired or revoked");
         }
 
         return refreshToken;

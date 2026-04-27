@@ -13,6 +13,7 @@ import { tokenStore } from "@/lib/token-store"
 interface AuthContextType {
   user: UserDto | null
   isAuthenticated: boolean
+  isInitializing: boolean
   login: (email: string, password: string) => Promise<UserDto>
   logout: () => Promise<void>
 }
@@ -21,6 +22,9 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDto | null>(null)
+  const [isInitializing, setIsInitializing] = useState(
+    () => !!localStorage.getItem("refreshToken")
+  )
 
   useEffect(() => {
     const refreshToken = localStorage.getItem("refreshToken")
@@ -36,7 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         tokenStore.clear()
         localStorage.removeItem("refreshToken")
-        setUser(null)
+      })
+      .finally(() => {
+        setIsInitializing(false)
       })
   }, [])
 
@@ -61,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
+    isInitializing,
     login,
     logout,
   }

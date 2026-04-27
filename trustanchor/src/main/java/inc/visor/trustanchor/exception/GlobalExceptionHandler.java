@@ -42,5 +42,10 @@ public class GlobalExceptionHandler {
             .body(new ErrorResponse("Account is disabled", "403"));
     }
 
-    
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidToken(InvalidTokenException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(new ErrorResponse(ex.getMessage(), "401"));
+    }
+
 }
