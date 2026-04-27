@@ -20,3 +20,29 @@ export const loginSchema = z.object({
 
 export type RegistrationValues = z.infer<typeof registrationSchema>
 export type LoginValues = z.infer<typeof loginSchema>
+
+export const organizationSchema = z.object({
+  name: z.string().min(1, "Organization name is required").max(255),
+  code: z
+    .string()
+    .min(2, "Code too short")
+    .max(64)
+    .regex(/^[A-Z0-9_-]+$/, "Uppercase alphanumeric only"),
+  location: z.string().min(1, "Location is required"),
+  email: z.string().email("Invalid email format"),
+  website: z.string().min(1, "Domain is required"),
+  registrationDate: z.string().min(1, "Date is required"),
+})
+
+export type OrganizationFormValues = z.infer<typeof organizationSchema>
+
+export const caUserSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(15, "Min 15 chars"),
+  organizationId: 0,
+  userRole: z.enum(["ADMIN", "CA_USER", "USER"]),
+})
+
+export type CaUserFormValues = z.infer<typeof caUserSchema>

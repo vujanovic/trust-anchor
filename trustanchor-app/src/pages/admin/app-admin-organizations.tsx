@@ -15,7 +15,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import AppOrganizationDialog from "@/pages/admin/dialog/app-organization-dialog.tsx"
+import type { OrganizationFormValues } from "@/lib/validations"
 
 const organizations = [
   {
@@ -49,6 +51,7 @@ const organizations = [
 
 export default function AdminOrganizationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const selectedId = searchParams.get("id")
 
   useEffect(() => {
@@ -57,10 +60,20 @@ export default function AdminOrganizationsPage() {
     }
   }, [selectedId, setSearchParams])
 
+  const handleCreateOrg = async (data: OrganizationFormValues) => {
+    console.log("Sending to Java Backend:", data)
+    // await axios.post('/api/v1/org', data)
+  }
+
   const selectedOrg = organizations.find((o) => o.id === selectedId)
 
   return (
     <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-sidebar">
+      <AppOrganizationDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onSubmit={handleCreateOrg}
+      />
       <div className="flex w-80 flex-col border-r border-sidebar-border bg-sidebar-accent/5">
         <div className="space-y-4 border-b border-sidebar-border p-4">
           <h2 className="text-sm font-bold tracking-widest uppercase">
@@ -212,6 +225,7 @@ export default function AdminOrganizationsPage() {
           </div>
         )}
         <Button
+          onClick={() => setIsDialogOpen(true)}
           size="lg"
           className="group fixed right-10 bottom-10 size-16 rounded-4xl bg-primary text-primary-foreground shadow-2xl shadow-primary/40 transition-transform hover:scale-105"
         >
