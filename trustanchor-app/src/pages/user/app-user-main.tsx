@@ -58,24 +58,32 @@ export default function AppUserMain() {
   const navigate = useNavigate()
 
   useEffect(() => {
-  const fetchData = async () => {
-    console.log("1. fetchData started"); // Check if this shows
-    setIsLoading(true);
-    try {
-      console.log("2. Calling getMyCertificates...");
-      const data = await getMyCertificates();
-      console.log("3. Data received:", data);
-      setCerts(data);
-    } catch (error: any) {
-      console.error("4. Catch caught something:", error);
-    } finally {
-      console.log("5. Finally block reached");
-      setIsLoading(false);
+    const fetchCertificates = async () => {
+      setIsLoading(true)
+      try {
+        const data = await getMyCertificates()
+        setCerts(data)
+      } catch (error) {
+        console.error("Failed to fetch:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
-  };
 
-  fetchData();
-}, []);
+    fetchCertificates()
+  }, [])
+
+  const handleRefresh = async () => {
+    setIsLoading(true)
+    try {
+      const data = await getMyCertificates()
+      setCerts(data)
+    } catch (error) {
+      console.error("Failed to fetch:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const userName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()
   const userEmail = user?.email ?? ""
@@ -247,8 +255,13 @@ export default function AppUserMain() {
               <p className="text-sm font-bold text-card-foreground">
                 Certificate List
               </p>
-              <Button variant="ghost" size="sm">
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleRefresh}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
