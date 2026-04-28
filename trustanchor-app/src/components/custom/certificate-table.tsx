@@ -9,21 +9,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-interface Certificate {
-  id: string;
-  cn: string;
-  serialNumber: string;
-  validFrom: string;
-  validTo: string;
-  status: 'active' | 'expired' | 'revoked';
-  issuer: string;
-  keyAlg: string;
-}
+import type { CertificateDto } from '@/types/certificate';
 
 interface CertificateTableProps {
-  certs: Certificate[];
-  onRevoke: (cert: Certificate) => void;
+  certs: CertificateDto[];
+  onRevoke: (cert: CertificateDto) => void; // Changed from array to single object
 }
 
 export function CertificateTable({ certs, onRevoke }: CertificateTableProps) {
@@ -41,29 +31,32 @@ export function CertificateTable({ certs, onRevoke }: CertificateTableProps) {
     );
   }
 
-  const getStatusBadge = (status: Certificate['status']) => {
+  // Updated to use status from CertificateDto
+  const getStatusBadge = (status: CertificateDto['status']) => {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return (
           <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
             <CheckCircle className="w-3 h-3 mr-1.5" />
             Active
           </Badge>
         );
-      case 'expired':
+      case 'EXPIRED':
         return (
           <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
             <Clock className="w-3 h-3 mr-1.5" />
             Expired
           </Badge>
         );
-      case 'revoked':
+      case 'REVOKED':
         return (
           <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
             <XCircle className="w-3 h-3 mr-1.5" />
             Revoked
           </Badge>
         );
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
@@ -85,8 +78,8 @@ export function CertificateTable({ certs, onRevoke }: CertificateTableProps) {
             <TableRow key={cert.id}>
               <TableCell>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{cert.cn}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{cert.issuer}</p>
+                  <p className="text-sm font-semibold text-foreground">{cert.commonName}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{cert.organizationName}</p>
                 </div>
               </TableCell>
               <TableCell>
@@ -95,10 +88,10 @@ export function CertificateTable({ certs, onRevoke }: CertificateTableProps) {
                 </code>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {cert.validFrom}
+                {new Date(cert.notBefore).toLocaleDateString()}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {cert.validTo}
+                {new Date(cert.notAfter).toLocaleDateString()}
               </TableCell>
               <TableCell>
                 {getStatusBadge(cert.status)}
@@ -109,7 +102,7 @@ export function CertificateTable({ certs, onRevoke }: CertificateTableProps) {
                     <Download className="w-3.5 h-3.5 mr-1.5" />
                     Download
                   </Button>
-                  {cert.status === 'active' && (
+                  {cert.status === 'ACTIVE' && (
                     <Button 
                       variant="ghost" 
                       size="sm" 
