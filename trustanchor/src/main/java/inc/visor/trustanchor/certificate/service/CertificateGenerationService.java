@@ -17,9 +17,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import javax.crypto.SecretKey;
 
+import inc.visor.trustanchor.user.entity.User;
+import inc.visor.trustanchor.user.service.UserService;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
@@ -63,6 +66,7 @@ public class CertificateGenerationService {
     private final CertificateRepository certificateRepository;
     private final EncryptionService encryptionService;
     private final OrganizationKeyService orgKeyService;
+    private final UserService userService;
 
     @PostConstruct
     public void registerBCProvider() {
@@ -73,6 +77,9 @@ public class CertificateGenerationService {
 
     @Transactional
     public Certificate issue(IssueCertificateDto dto, AnchorUserDetails currentUser) {
+
+        User targetUser  = userService.findByEmail(dto.getEmail())
+                .orElseThrow(() -> new NotFoundException("Target user's email not found"));
 
         // 1. Load issuer
         Certificate issuerCert = certificateRepository.findById(dto.getIssuerCertificateId())
@@ -90,7 +97,8 @@ public class CertificateGenerationService {
         // 5. CA_USER may only use issuers from their own organization
         if (currentUser.getUser().getUserRole() == UserRole.CA_USER) {
             long userOrgId = currentUser.getUser().getOrganization().getId();
-            if (userOrgId != issuerCert.getOrganizationId()) {
+            long targetUserOrgId = targetUser.getOrganization().getId();
+            if (userOrgId != issuerCert.getOrganizationId() || userOrgId != targetUserOrgId) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "CA users may only issue certificates for their own organization");
             }
@@ -179,7 +187,7 @@ public class CertificateGenerationService {
             cert.setSerialNumber(serial.toString(16));
             cert.setIssuerCertificate(issuerCert);
             cert.setOrganizationId(orgId);
-            cert.setUserId(currentUser.getUser().getId());
+            cert.setUserId(targetUser.getId());
             cert.setCommonName(dto.getCommonName());
             cert.setOrganizationName(dto.getOrganizationName());
             cert.setOrganizationalUnit(dto.getOrganizationalUnit());
