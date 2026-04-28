@@ -18,31 +18,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
-interface Certificate {
-  id: string;
-  cn: string;
-  serialNumber: string;
-  validFrom: string;
-  validTo: string;
-  status: 'active' | 'expired' | 'revoked';
-  issuer: string;
-  keyAlg: string;
-}
+import type { CertificateDto } from '@/types/certificate';
 
 interface RevocationModalProps {
-  cert: Certificate;
+  cert: CertificateDto; // Updated to use DTO
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, additionalInfo: string) => void;
 }
 
 export function RevocationModal({ cert, onClose, onConfirm }: RevocationModalProps) {
-  const [reason, setReason] = useState('unspecified');
+  // Common PKI revocation reasons usually follow uppercase enum patterns in DTOs
+  const [reason, setReason] = useState('UNSPECIFIED');
   const [additionalInfo, setAdditionalInfo] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(reason);
+    onConfirm(reason, additionalInfo);
   };
 
   return (
@@ -61,11 +52,11 @@ export function RevocationModal({ cert, onClose, onConfirm }: RevocationModalPro
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Certificate Info */}
+          {/* Certificate Info Mapping */}
           <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-2">
             <div className="flex justify-between">
               <span className="text-xs font-medium text-muted-foreground">Common Name</span>
-              <span className="text-xs font-semibold text-foreground">{cert.cn}</span>
+              <span className="text-xs font-semibold text-foreground">{cert.commonName}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs font-medium text-muted-foreground">Serial Number</span>
@@ -74,8 +65,8 @@ export function RevocationModal({ cert, onClose, onConfirm }: RevocationModalPro
               </code>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Issuer</span>
-              <span className="text-xs font-semibold text-foreground">{cert.issuer}</span>
+              <span className="text-xs font-medium text-muted-foreground">Organization</span>
+              <span className="text-xs font-semibold text-foreground">{cert.organizationName}</span>
             </div>
           </div>
 
@@ -89,14 +80,14 @@ export function RevocationModal({ cert, onClose, onConfirm }: RevocationModalPro
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unspecified">Unspecified</SelectItem>
-                <SelectItem value="keyCompromise">Key Compromise</SelectItem>
-                <SelectItem value="caCompromise">CA Compromise</SelectItem>
-                <SelectItem value="affiliationChanged">Affiliation Changed</SelectItem>
-                <SelectItem value="superseded">Superseded</SelectItem>
-                <SelectItem value="cessationOfOperation">Cessation of Operation</SelectItem>
-                <SelectItem value="certificateHold">Certificate Hold</SelectItem>
-                <SelectItem value="privilegeWithdrawn">Privilege Withdrawn</SelectItem>
+                <SelectItem value="UNSPECIFIED">Unspecified</SelectItem>
+                <SelectItem value="KEY_COMPROMISE">Key Compromise</SelectItem>
+                <SelectItem value="CA_COMPROMISE">CA Compromise</SelectItem>
+                <SelectItem value="AFFILIATION_CHANGED">Affiliation Changed</SelectItem>
+                <SelectItem value="SUPERSEDED">Superseded</SelectItem>
+                <SelectItem value="CESSATION_OF_OPERATION">Cessation of Operation</SelectItem>
+                <SelectItem value="CERTIFICATE_HOLD">Certificate Hold</SelectItem>
+                {/* <SelectItem value="PRIVILEGE_WITHDRAWN">Privilege Withdrawn</SelectItem> */}
               </SelectContent>
             </Select>
           </div>
@@ -118,8 +109,8 @@ export function RevocationModal({ cert, onClose, onConfirm }: RevocationModalPro
             <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-red-700 dark:text-red-300">
               <strong>Warning:</strong> Revoking this certificate will immediately invalidate it. 
-              Any systems or applications using this certificate will no longer trust it. 
-              This action is permanent and cannot be reversed.
+              Systems using this certificate will no longer trust it via CRL or OCSP check. 
+              This action is permanent.
             </p>
           </div>
 

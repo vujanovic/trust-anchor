@@ -105,6 +105,17 @@ public class DataSeeder implements CommandLineRunner {
             .build()
         );
 
+        userRepository.save(User.builder()
+                .firstName("Regular 2")
+                .lastName("User 2")
+                .email("user2@gmail.com")
+                .password(passwordEncoder.encode("TestPassword123!"))
+                .organization(org)
+                .userRole(UserRole.USER)
+                .userStatus(UserStatus.ACTIVE)
+                .build()
+        );
+
         seedRootCertificate(org);
     }
 

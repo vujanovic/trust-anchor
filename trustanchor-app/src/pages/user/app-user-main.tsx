@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import { useEffect, useState } from "react"
 import { CertificateTable } from "@/components/custom/certificate-table"
 import { StatCard } from "@/components/custom/stat-card"
 import { RequestTab } from "@/components/custom/request-tab"
@@ -19,43 +19,12 @@ import {
   LogOut,
   User,
   Anchor,
+  Loader2,
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useNavigate } from "react-router-dom"
-
-// Mock data
-const MOCK_CERTS = [
-  {
-    id: "cert-1",
-    cn: "marko.petrovic@corp.local",
-    serialNumber: "4A:2F:B1:9E:CC:01",
-    validFrom: "2024-03-15",
-    validTo: "2025-03-15",
-    status: "active" as const,
-    issuer: "IB Corp Intermediate CA",
-    keyAlg: "RSA-2048",
-  },
-  {
-    id: "cert-2",
-    cn: "marko.petrovic-vpn@corp.local",
-    serialNumber: "7D:44:A9:02:F3:88",
-    validFrom: "2023-11-01",
-    validTo: "2024-11-01",
-    status: "expired" as const,
-    issuer: "IB Corp Intermediate CA",
-    keyAlg: "EC-P256",
-  },
-  {
-    id: "cert-3",
-    cn: "mp-codesign@corp.local",
-    serialNumber: "1B:88:C3:7A:00:F2",
-    validFrom: "2024-01-20",
-    validTo: "2025-01-20",
-    status: "revoked" as const,
-    issuer: "IB Corp Intermediate CA",
-    keyAlg: "RSA-4096",
-  },
-]
+import { getMyCertificates } from "@/service/certificate-service"
+import type { CertificateDto } from "@/types/certificate"
 
 const MOCK_CAS = [
   {
@@ -80,21 +49,50 @@ const MOCK_CAS = [
 
 export default function AppUserMain() {
   const [activeTab, setActiveTab] = useState<"certs" | "request">("certs")
-  const [certs, setCerts] = useState(MOCK_CERTS)
-  const [revoking, setRevoking] = useState<(typeof MOCK_CERTS)[0] | null>(null)
+  const [certs, setCerts] = useState<CertificateDto[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [revoking, setRevoking] = useState<CertificateDto | null>(null)
   const [darkMode, setDarkMode] = useState(true)
 
   const { logout, user } = useAuth()
   const navigate = useNavigate()
 
+  useEffect(() => {
+    const fetchCertificates = async () => {
+      setIsLoading(true)
+      try {
+        const data = await getMyCertificates()
+        setCerts(data)
+      } catch (error) {
+        console.error("Failed to fetch:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCertificates()
+  }, [])
+
+  const handleRefresh = async () => {
+    setIsLoading(true)
+    try {
+      const data = await getMyCertificates()
+      setCerts(data)
+    } catch (error) {
+      console.error("Failed to fetch:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const userName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()
   const userEmail = user?.email ?? ""
 
-  const activeCerts = certs.filter((c) => c.status === "active").length
-  const expiredCerts = certs.filter((c) => c.status === "expired").length
-  const revokedCerts = certs.filter((c) => c.status === "revoked").length
+  const activeCerts = certs.filter((c) => c.status === "ACTIVE").length
+  const expiredCerts = certs.filter((c) => c.status === "EXPIRED").length
+  const revokedCerts = certs.filter((c) => c.status === "REVOKED").length
 
-  const handleRevoke = (cert: (typeof MOCK_CERTS)[0]) => {
+  const handleRevoke = (cert: CertificateDto) => {
     setRevoking(cert)
   }
 
@@ -102,7 +100,7 @@ export default function AppUserMain() {
     if (!revoking) return
     setCerts((prev) =>
       prev.map((c) =>
-        c.id === revoking.id ? { ...c, status: "revoked" as const } : c
+        c.id === revoking.id ? { ...c, status: "REVOKED" as const } : c
       )
     )
     setRevoking(null)
@@ -257,12 +255,23 @@ export default function AppUserMain() {
               <p className="text-sm font-bold text-card-foreground">
                 Certificate List
               </p>
-              <Button variant="ghost" size="sm">
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleRefresh}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
-            <CertificateTable certs={certs} onRevoke={handleRevoke} />
+            {isLoading ? (
+              <div className="flex h-64 items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <CertificateTable certs={certs} onRevoke={handleRevoke} />
+            )}
           </Card>
         )}
 
