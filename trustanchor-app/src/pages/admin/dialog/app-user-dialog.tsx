@@ -19,7 +19,7 @@ interface AppUserDialogProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: CaUserFormValues) => void
-  organizations: { id: string; name: string }[] // Potrebno za dropdown
+  organizations: { id: number; name: string }[]
 }
 
 export default function AppUserDialog({
@@ -41,12 +41,16 @@ export default function AppUserDialog({
       email: "",
       password: "",
       organizationId: 0,
-      userRole: "USER",
+      userRole: "CA_USER",
     },
   })
 
   const handleFormSubmit: SubmitHandler<CaUserFormValues> = (data) => {
-    onSubmit(data)
+    const payload = {
+      ...data,
+      organizationId: Number(data.organizationId),
+    }
+    onSubmit(payload)
     reset()
     onClose()
   }
@@ -143,8 +147,8 @@ export default function AppUserDialog({
               >
                 <option value="">Select role...</option>
                 <option value="ADMIN">Administrator</option>
-                <option value="CA_OPERATOR">CA Operator</option>
-                <option value="AUDITOR">Security Auditor</option>
+                <option value="CA_USER">CA User</option>
+                <option value="USER">User</option>
               </select>
               {errors.userRole && <ErrorMsg msg={errors.userRole.message} />}
             </div>

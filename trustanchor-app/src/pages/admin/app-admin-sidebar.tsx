@@ -1,13 +1,13 @@
 import {
   Anchor,
+  Building2,
   FileKey,
+  History,
   LayoutDashboard,
   LogOut,
   Settings,
   ShieldCheck,
   Users,
-  History,
-  Building2,
 } from "lucide-react"
 import {
   Sidebar,
@@ -36,9 +36,13 @@ export function AppAdminSidebar() {
   const menuItems = [
     { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
     { title: "Organizations", url: "/admin/organizations", icon: Building2 },
-    { title: "CA Users", url: "/admin/users", icon: Users },
+    { title: "Users", url: "/admin/users", icon: Users },
     { title: "Issue Certificate", url: "/admin/issue", icon: FileKey },
-    { title: "All Certificates", url: "/admin/certificates", icon: ShieldCheck,},
+    {
+      title: "All Certificates",
+      url: "/admin/certificates",
+      icon: ShieldCheck,
+    },
     { title: "Revocation List", url: "/admin/revocation", icon: History },
     { title: "System Settings", url: "/admin/settings", icon: Settings },
   ]
@@ -69,7 +73,8 @@ export function AppAdminSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={location.pathname === item.url}
-                  tooltip={item.title}>
+                  tooltip={item.title}
+                >
                   <Link to={item.url}>
                     <item.icon className="size-4" />
                     <span>{item.title}</span>
@@ -82,14 +87,17 @@ export function AppAdminSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/50 p-3">
         <div className="mb-2 px-2 py-1">
-          <p className="text-sm font-semibold leading-none text-foreground">
+          <p className="text-sm leading-none font-semibold text-foreground">
             {user?.firstName} {user?.lastName}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{user?.email}</p>
         </div>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} className="text-red-500 hover:bg-red-500/10 hover:text-red-500">
+            <SidebarMenuButton
+              onClick={handleLogout}
+              className="text-red-500 hover:bg-red-500/10 hover:text-red-500"
+            >
               <LogOut className="size-4" />
               <span>Logout</span>
             </SidebarMenuButton>

@@ -63,10 +63,10 @@ export type OrganizationFormValues = z.infer<typeof organizationSchema>
 export const caUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email format"),
-  password: z.string().min(15, "Min 15 chars"),
-  organizationId: 0,
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(15, "Password must be at least 15 characters"),
+  organizationId: z.coerce.number().min(1, "Please select an organization"),
   userRole: z.enum(["ADMIN", "CA_USER", "USER"]),
-})
+});
 
-export type CaUserFormValues = z.infer<typeof caUserSchema>
+export type CaUserFormValues = z.infer<typeof caUserSchema>;
