@@ -33,6 +33,12 @@ public class CertificateController {
     private final CertificateGenerationService certificateGenerationService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<List<CertificateDto>> getMyCertificates() {
+        return ResponseEntity.ok(certificateService.getCertificates().stream().map(CertificateDto::new).toList());
+    }
+
+    @GetMapping("/me")
     public ResponseEntity<List<CertificateDto>> getMyCertificates(
             @AuthenticationPrincipal AnchorUserDetails currentUser) {
         if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
