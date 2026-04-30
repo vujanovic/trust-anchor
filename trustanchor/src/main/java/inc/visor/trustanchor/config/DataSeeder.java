@@ -67,8 +67,9 @@ public class DataSeeder implements CommandLineRunner {
                 .name("TrustAnchor Root")
                 .code("TRUSTANCHOR")
                 .email("root@trustanchor.local")
+                .domain("trustanchor.local")
                 .location("Belgrade, Serbia")
-                .registrationDate(LocalDateTime.now())
+                .registrationDate(LocalDateTime.now().toLocalDate().atStartOfDay())
                 .build()
         );
 
