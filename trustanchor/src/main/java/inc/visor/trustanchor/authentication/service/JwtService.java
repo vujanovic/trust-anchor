@@ -39,6 +39,18 @@ public class JwtService {
             .compact();
     }
 
+    public String generateVerificationToken(String email) {
+        long verificationExpiration = 86400000;
+
+        return Jwts.builder()
+                .subject(email)
+                .claim("purpose", "EMAIL_VERIFICATION")
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + verificationExpiration))
+                .signWith(signingKey)
+                .compact();
+    }
+
     public String extractUsername(String token) {
         return parseClaims(token).getSubject();
     }

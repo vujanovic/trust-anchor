@@ -1,16 +1,15 @@
 package inc.visor.trustanchor.authentication.service;
 
+import inc.visor.trustanchor.authentication.dto.*;
+import inc.visor.trustanchor.user.entity.UserStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import inc.visor.trustanchor.authentication.dto.LoginDto;
-import inc.visor.trustanchor.authentication.dto.LoginResponseDto;
-import inc.visor.trustanchor.authentication.dto.RefreshRequestDto;
-import inc.visor.trustanchor.authentication.dto.RegistrationDto;
 import inc.visor.trustanchor.authentication.entity.RefreshToken;
 import inc.visor.trustanchor.email.EmailService;
 import inc.visor.trustanchor.exception.NotFoundException;
@@ -31,11 +30,12 @@ public class AuthenticationService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final UserDetailsService userDetailsService;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthenticationService(UserService userService, EmailService emailService,
-            OrganizationService organizationService, AuthenticationManager authenticationManager,
-            JwtService jwtService, RefreshTokenService refreshTokenService,
-            UserDetailsService userDetailsService) {
+                                 OrganizationService organizationService, AuthenticationManager authenticationManager,
+                                 JwtService jwtService, RefreshTokenService refreshTokenService,
+                                 UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
         this.userService = userService;
         this.emailService = emailService;
         this.organizationService = organizationService;
@@ -43,6 +43,7 @@ public class AuthenticationService {
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.userDetailsService = userDetailsService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public User register(RegistrationDto dto) {
@@ -86,6 +87,15 @@ public class AuthenticationService {
         RefreshToken newRefreshToken = refreshTokenService.create(userDetails.getUser());
 
         return new LoginResponseDto(accessToken, newRefreshToken.getToken(), new UserDto(userDetails.getUser()));
+    }
+
+    @Transactional
+    public void verifyAndActivate(VerificationDto dto) {
+        User user = userService.findByEmail(jwtService.extractUsername(dto.getToken()))
+                .orElseThrow(() -> new RuntimeException("Invalid or expired authorization token"));
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setUserStatus(UserStatus.ACTIVE);
+        userService.update(user);
     }
 
     public void logout(RefreshRequestDto dto) {

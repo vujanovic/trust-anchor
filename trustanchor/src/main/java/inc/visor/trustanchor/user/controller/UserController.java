@@ -53,12 +53,6 @@ public class UserController {
         return ResponseEntity.ok(new UserDto(user));
     }
 
-    @PutMapping("/ca/{id}")
-    public ResponseEntity<UserDto> updateCAUser(@PathVariable long id, @Valid @RequestBody CreateCAUserDto userDto) {
-        final User user = userService.findById(id).orElseThrow(NotFoundException::new);
-        return ResponseEntity.ok(new UserDto(userService.update(user, userDto)));
-    }
-
     @DeleteMapping("/ca/{id}")
     public ResponseEntity<Void> deleteCAUser(@PathVariable long id) {
         final User user = userService.findById(id).orElseThrow(NotFoundException::new);
