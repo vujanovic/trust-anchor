@@ -14,6 +14,9 @@ public class EmailService {
     @Value("${spring.mail.from}")
     private String from;
 
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
+
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
@@ -33,5 +36,28 @@ public class EmailService {
         } catch (Exception e) {
             throw new RuntimeException("Error sending email", e);
         }
+    }
+
+    public void sendVerificationEmail(String to, String name, String token) {
+        String verificationLink = String.format("%s/verify-identity?token=%s", frontendUrl, token);
+
+        String subject = "Enrollment: Action Required";
+        String body = String.format(
+                "<html>" +
+                        "<body>" +
+                        "<h2>Welcome to Trust Anchor, %s</h2>" +
+                        "<p>Your identity has been provisioned. To complete your enrollment, please authorize via the link below:</p>" +
+                        "<div style='margin: 20px 0;'>" +
+                        "  <a href='%s' style='background: #000; color: #fff; padding: 12px 24px; text-decoration: none; font-weight: bold;'>" +
+                        "    AUTHORIZE IDENTITY" +
+                        "  </a>" +
+                        "</div>" +
+                        "<p>Alternatively, copy and paste this link: <br/> %s </p>" +
+                        "</body>" +
+                        "</html>",
+                name, verificationLink, verificationLink
+        );
+
+        send(to, subject, body);
     }
 }

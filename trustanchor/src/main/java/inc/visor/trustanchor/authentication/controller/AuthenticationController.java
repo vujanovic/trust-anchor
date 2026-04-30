@@ -12,7 +12,7 @@ import inc.visor.trustanchor.authentication.dto.LoginResponseDto;
 import inc.visor.trustanchor.authentication.dto.RefreshRequestDto;
 import inc.visor.trustanchor.authentication.dto.RegistrationDto;
 import inc.visor.trustanchor.authentication.dto.ResetPasswordDto;
-import inc.visor.trustanchor.authentication.dto.VerifyTokenDto;
+import inc.visor.trustanchor.authentication.dto.VerificationDto;
 import inc.visor.trustanchor.authentication.service.AuthenticationService;
 import inc.visor.trustanchor.user.dto.UserDto;
 import inc.visor.trustanchor.user.entity.User;
@@ -53,7 +53,8 @@ public class AuthenticationController {
     }
 
     @PostMapping("/verifyUser")
-    public ResponseEntity<Void> verifyUser(@RequestBody VerifyTokenDto token) {
+    public ResponseEntity<Void> verifyUser(@RequestBody VerificationDto dto) {
+        authenticationService.verifyAndActivate(dto);
         return ResponseEntity.ok().build();
     }
 

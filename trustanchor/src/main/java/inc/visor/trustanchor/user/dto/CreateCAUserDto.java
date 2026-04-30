@@ -17,10 +17,6 @@ public class CreateCAUserDto {
     @Size(max = 255, message = "Email must be at most 255 characters")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 15, max = 64, message = "Password must be between 15 and 64 characters")
-    private String password;
-
     @NotBlank(message = "First name is required")
     @Size(min = 1, max = 100, message = "First name must be between 1 and 100 characters")
     private String firstName;
