@@ -1,8 +1,9 @@
 import axios from "axios"
 import { tokenStore } from "./token-store"
+import config from "../config/config.json"
 
 export const api = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: config.url,
 })
 
 api.interceptors.request.use((config) => {
@@ -53,9 +54,9 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(
-          "http://localhost:8080/api/v1/auth/refresh",
-          { refreshToken }
-        )
+          `${config.url}/api/v1/auth/refresh`, {
+          refreshToken,
+        })
         tokenStore.set(data.accessToken)
         localStorage.setItem("refreshToken", data.refreshToken)
         originalRequest.headers["Authorization"] = `Bearer ${data.accessToken}`

@@ -22,16 +22,40 @@ export type RegistrationValues = z.infer<typeof registrationSchema>
 export type LoginValues = z.infer<typeof loginSchema>
 
 export const organizationSchema = z.object({
-  name: z.string().min(1, "Organization name is required").max(255),
+  name: z
+    .string()
+    .min(1, { message: "Organization name is required" })
+    .max(255, { message: "Name is too long" }),
+
   code: z
     .string()
-    .min(2, "Code too short")
-    .max(64)
-    .regex(/^[A-Z0-9_-]+$/, "Uppercase alphanumeric only"),
-  location: z.string().min(1, "Location is required"),
-  email: z.string().email("Invalid email format"),
-  website: z.string().min(1, "Domain is required"),
-  registrationDate: z.string().min(1, "Date is required"),
+    .min(2, { message: "Code must be at least 2 characters" })
+    .max(64, { message: "Code must be under 64 characters" })
+    .regex(/^[A-Z0-9_-]+$/, {
+      message:
+        "Code must be uppercase alphanumeric (dashes and underscores allowed)",
+    }),
+
+  location: z.string().min(1, { message: "Location is required" }),
+
+  email: z
+    .string()
+    .min(1, { message: "Email is required" })
+    .email({ message: "Invalid email format" }),
+
+  domain: z
+    .string()
+    .min(1, { message: "Domain is required" })
+    .regex(
+      /^(?!:\/\/)([a-zA-Z0-9-_]+\.)*[a-zA-Z0-9][a-zA-Z0-9-_]+\.[a-zA-Z]{2,11}?$/,
+      {
+        message: "Invalid domain format (e.g., example.com)",
+      }
+    ),
+
+  registrationDate: z
+    .string()
+    .min(1, { message: "Registration date is required" }),
 })
 
 export type OrganizationFormValues = z.infer<typeof organizationSchema>

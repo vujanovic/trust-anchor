@@ -106,11 +106,11 @@ export default function AppOrganizationDialog({
             <div className="space-y-2">
               <Label icon={Globe} label="Official Domain" />
               <Input
-                {...register("website")}
+                {...register("domain")}
                 placeholder="siit.rs"
                 className="rounded-none border-sidebar-border bg-sidebar/50 focus-visible:ring-primary"
               />
-              {errors.website && <ErrorMsg msg={errors.website.message} />}
+              {errors.domain && <ErrorMsg msg={errors.domain.message} />}
             </div>
             <div className="col-span-2 space-y-2">
               <Label icon={Calendar} label="Formal Registration Date" />
