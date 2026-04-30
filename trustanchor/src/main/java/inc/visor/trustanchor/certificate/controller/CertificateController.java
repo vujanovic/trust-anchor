@@ -1,21 +1,8 @@
 package inc.visor.trustanchor.certificate.controller;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import inc.visor.trustanchor.certificate.dto.CertificateDto;
 import inc.visor.trustanchor.certificate.dto.IssueCertificateDto;
+import inc.visor.trustanchor.certificate.entity.Certificate;
 import inc.visor.trustanchor.certificate.service.CertificateGenerationService;
 import inc.visor.trustanchor.certificate.service.CertificateService;
 import inc.visor.trustanchor.exception.UnauthorizedAccessException;
@@ -23,6 +10,14 @@ import inc.visor.trustanchor.user.entity.AnchorUserDetails;
 import inc.visor.trustanchor.user.entity.UserRole;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/certificates")
@@ -53,10 +48,14 @@ public class CertificateController {
             @Valid @RequestBody IssueCertificateDto dto,
             @AuthenticationPrincipal AnchorUserDetails currentUser) {
         if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(new CertificateDto(certificateGenerationService.issue(dto, currentUser)));
+        try {
+            Certificate certificate = certificateGenerationService.issue(dto, currentUser);
+            return ResponseEntity.status(HttpStatus.CREATED).body(new CertificateDto(certificate));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
+
     @GetMapping("/issuers")
     @PreAuthorize("hasAnyRole('ADMIN', 'CA_USER')")
     public ResponseEntity<List<CertificateDto>> getAvailableIssuers(

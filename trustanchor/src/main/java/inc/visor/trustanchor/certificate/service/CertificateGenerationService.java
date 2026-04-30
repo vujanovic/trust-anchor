@@ -1,46 +1,5 @@
 package inc.visor.trustanchor.certificate.service;
 
-import java.io.ByteArrayInputStream;
-import java.math.BigInteger;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.Security;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-
-import javax.crypto.SecretKey;
-
-import inc.visor.trustanchor.user.entity.User;
-import inc.visor.trustanchor.user.service.UserService;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x500.X500NameBuilder;
-import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x509.BasicConstraints;
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.asn1.x509.KeyUsage;
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-
 import inc.visor.trustanchor.certificate.dto.ExtensionsDto;
 import inc.visor.trustanchor.certificate.dto.IssueCertificateDto;
 import inc.visor.trustanchor.certificate.entity.Certificate;
@@ -52,9 +11,38 @@ import inc.visor.trustanchor.encryption.service.EncryptionService;
 import inc.visor.trustanchor.encryption.service.OrganizationKeyService;
 import inc.visor.trustanchor.exception.NotFoundException;
 import inc.visor.trustanchor.user.entity.AnchorUserDetails;
+import inc.visor.trustanchor.user.entity.User;
 import inc.visor.trustanchor.user.entity.UserRole;
+import inc.visor.trustanchor.user.service.UserService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x500.X500NameBuilder;
+import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import javax.crypto.SecretKey;
+import java.io.ByteArrayInputStream;
+import java.math.BigInteger;
+import java.security.*;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -76,76 +64,90 @@ public class CertificateGenerationService {
     }
 
     @Transactional
-    public Certificate issue(IssueCertificateDto dto, AnchorUserDetails currentUser) {
+    public Certificate issue(IssueCertificateDto dto, AnchorUserDetails currentUser) throws Exception {
 
-        User targetUser  = userService.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new NotFoundException("Target user's email not found"));
+        boolean isRoot = dto.getCertificateType() == CertificateType.ROOT;
+        Certificate issuerCert = null;
+        X509Certificate issuerX509 = null;
+        java.security.PrivateKey issuerPrivKey = null;
 
-        // 1. Load issuer
-        Certificate issuerCert = certificateRepository.findById(dto.getIssuerCertificateId())
-                .orElseThrow(() -> new NotFoundException("Issuer certificate not found"));
+        if (!isRoot) {
+            if (dto.getIssuerCertificateId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Issuer certificate ID is required for non-ROOT certificates");
+            }
+            issuerCert = certificateRepository.findById(dto.getIssuerCertificateId())
+                    .orElseThrow(() -> new NotFoundException("Issuer certificate not found"));
 
-        // 2. Must be ROOT or INTERMEDIATE
-        if (!issuerCert.isCACertificate()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Issuer must be a CA certificate (ROOT or INTERMEDIATE)");
-        }
+            if (!issuerCert.isCACertificate()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Issuer must be a CA certificate (ROOT or INTERMEDIATE)");
+            }
 
-        // 3. Validate the full issuer chain up to the root
-        validateIssuerChain(issuerCert);
+            validateIssuerChain(issuerCert);
 
-        // 5. CA_USER may only use issuers from their own organization
-        if (currentUser.getUser().getUserRole() == UserRole.CA_USER) {
-            long userOrgId = currentUser.getUser().getOrganization().getId();
-            long targetUserOrgId = targetUser.getOrganization().getId();
-            if (userOrgId != issuerCert.getOrganizationId() || userOrgId != targetUserOrgId) {
+            if (currentUser.getUser().getUserRole() == UserRole.CA_USER) {
+                long userOrgId = currentUser.getUser().getOrganization().getId();
+                if (userOrgId != issuerCert.getOrganizationId()) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                            "CA users may only use issuers from their own organization");
+                }
+            }
+
+            if (dto.getCertificateType() == CertificateType.ROOT) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "CA users may only issue INTERMEDIATE or END_ENTITY certificates");
+            }
+
+            if (!dto.getNotBefore().isBefore(dto.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "notBefore must be before notAfter");
+            }
+            if (dto.getNotBefore().isBefore(issuerCert.getNotBefore().truncatedTo(ChronoUnit.MINUTES))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate notBefore cannot precede issuer notBefore ("
+                                + issuerCert.getNotBefore() + ")");
+            }
+            if (dto.getNotAfter().isAfter(issuerCert.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate validity period cannot exceed issuer validity period ("
+                                + issuerCert.getNotAfter() + ")");
+            }
+
+            issuerPrivKey = decryptCertificatePrivateKey(issuerCert);
+            issuerX509 = parseX509(issuerCert.getCertificateContent());
+        } else {
+            if (currentUser.getUser().getUserRole() != UserRole.ADMIN) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "CA users may only issue certificates for their own organization");
+                        "Only ADMIN can issue ROOT certificates");
+            }
+            if (!dto.getNotBefore().isBefore(dto.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "notBefore must be before notAfter");
             }
         }
 
-        // 6. CA_USER cannot issue ROOT certificates
-        if (currentUser.getUser().getUserRole() == UserRole.CA_USER
-                && dto.getCertificateType() == CertificateType.ROOT) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "CA users may only issue INTERMEDIATE or END_ENTITY certificates");
+        User targetUser = null;
+        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+            targetUser = userService.findByEmail(dto.getEmail())
+                    .orElseThrow(() -> new NotFoundException("Target user's email not found"));
+            if (!isRoot && currentUser.getUser().getUserRole() == UserRole.CA_USER) {
+                long userOrgId = currentUser.getUser().getOrganization().getId();
+                long targetUserOrgId = targetUser.getOrganization().getId();
+                if (userOrgId != targetUserOrgId) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                            "CA users may only issue certificates for users in their own organization");
+                }
+            }
         }
 
-        // 7. Validity range must be coherent and fall within issuer's validity window
-        if (!dto.getNotBefore().isBefore(dto.getNotAfter())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "notBefore must be before notAfter");
-        }
-        if (dto.getNotBefore().isBefore(issuerCert.getNotBefore().truncatedTo(ChronoUnit.MINUTES))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Certificate notBefore cannot precede issuer notBefore ("
-                            + issuerCert.getNotBefore() + ")");
-        }
-        if (dto.getNotAfter().isAfter(issuerCert.getNotAfter())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Certificate validity period cannot exceed issuer validity period ("
-                            + issuerCert.getNotAfter() + ")");
-        }
-
-        // 8. Enforce extension constraints based on certificate type — backend is authoritative.
-        // A client could send isCA=true with certificateType=END_ENTITY; that must be rejected.
         ExtensionsDto ext = normalizeExtensions(dto.getExtensions(), dto.getCertificateType());
 
         try {
             long orgId = currentUser.getUser().getOrganization().getId();
-
-            // 9. Decrypt issuer private key
-            java.security.PrivateKey issuerPrivKey = decryptCertificatePrivateKey(issuerCert);
-
-            // 9. Parse issuer X.509 certificate
-            X509Certificate issuerX509 = parseX509(issuerCert.getCertificateContent());
-
-            // 10. Generate RSA 2048 key pair
             KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
             gen.initialize(KEY_SIZE, new SecureRandom());
             KeyPair keyPair = gen.generateKeyPair();
-
-            // 11. Build subject DN
             X500NameBuilder nameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
             nameBuilder.addRDN(BCStyle.CN, dto.getCommonName());
             nameBuilder.addRDN(BCStyle.O, dto.getOrganizationName());
@@ -157,37 +159,39 @@ public class CertificateGenerationService {
                 nameBuilder.addRDN(BCStyle.E, dto.getEmail());
             }
             X500Name subjectDN = nameBuilder.build();
-
-            // 12. 128-bit random positive serial number
             BigInteger serial = new BigInteger(128, new SecureRandom()).abs();
-
-            // 13. Build X509v3 certificate
             Date notBefore = Date.from(dto.getNotBefore().atZone(ZoneId.systemDefault()).toInstant());
             Date notAfter  = Date.from(dto.getNotAfter().atZone(ZoneId.systemDefault()).toInstant());
+            X500Name issuerDN;
+            java.security.PrivateKey signingKey;
+            PublicKey issuerPublicKey;
+
+            if (isRoot) {
+                issuerDN = subjectDN;
+                signingKey = keyPair.getPrivate();
+                issuerPublicKey = keyPair.getPublic();
+            } else {
+                issuerDN = X500Name.getInstance(issuerX509.getSubjectX500Principal());
+                signingKey = issuerPrivKey;
+                issuerPublicKey = issuerX509.getPublicKey();
+            }
 
             JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
-                    issuerX509, serial, notBefore, notAfter, subjectDN, keyPair.getPublic());
-
-            // 14. Add extensions
-            addExtensions(certBuilder, ext, keyPair.getPublic(), issuerX509.getPublicKey());
-
-            // 15. Sign
+                    issuerDN, serial, notBefore, notAfter, subjectDN, keyPair.getPublic());
+            addExtensions(certBuilder, ext, keyPair.getPublic(), issuerPublicKey, isRoot);
             ContentSigner signer = new JcaContentSignerBuilder(SIGN_ALGORITHM)
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-                    .build(issuerPrivKey);
+                    .build(signingKey);
             byte[] certDer = certBuilder.build(signer).getEncoded();
-
-            // 16. Encrypt new private key: nonce(12) || ciphertext || authTag(16)
             SecretKey orgKey = orgKeyService.getOrCreateOrgKey(orgId);
             EncryptedData enc = encryptionService.encrypt(keyPair.getPrivate().getEncoded(), orgKey);
             byte[] packedPrivKey = enc.pack();
 
-            // 17. Persist
             Certificate cert = new Certificate();
             cert.setSerialNumber(serial.toString(16));
-            cert.setIssuerCertificate(issuerCert);
+            cert.setIssuerCertificate(isRoot ? null : issuerCert);
             cert.setOrganizationId(orgId);
-            cert.setUserId(targetUser.getId());
+            cert.setUserId(targetUser != null ? targetUser.getId() : null);
             cert.setCommonName(dto.getCommonName());
             cert.setOrganizationName(dto.getOrganizationName());
             cert.setOrganizationalUnit(dto.getOrganizationalUnit());
@@ -269,8 +273,7 @@ public class CertificateGenerationService {
                 .generateCertificate(new ByteArrayInputStream(der));
     }
 
-    private void addExtensions(JcaX509v3CertificateBuilder builder, ExtensionsDto ext,
-                                PublicKey subjectKey, PublicKey issuerKey) throws Exception {
+    private void addExtensions(JcaX509v3CertificateBuilder builder, ExtensionsDto ext, PublicKey subjectKey, PublicKey issuerKey, boolean isRoot) throws Exception {
         JcaX509ExtensionUtils utils = new JcaX509ExtensionUtils();
 
         builder.addExtension(Extension.subjectKeyIdentifier, false,
