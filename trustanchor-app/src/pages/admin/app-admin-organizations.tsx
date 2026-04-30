@@ -79,30 +79,23 @@ export default function AdminOrganizationsPage() {
   }
 
   const handleDeleteOrg = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this entity?")) return
+    if (!window.confirm("Are you sure you want to delete this entity?")) return;
 
     try {
-      const response = await fetch(`/api/v1/org/${id}`, {
-        method: "DELETE",
-      })
+      await api.delete(`/api/v1/org/${id}`);
 
-      if (response.ok) {
-        const filteredOrgs = organizations.filter((org) => org.id !== id)
-        setOrganizations(filteredOrgs)
+      const filteredOrgs = organizations.filter((org) => org.id !== id);
+      setOrganizations(filteredOrgs);
 
-        // Update URL params
-        if (filteredOrgs.length > 0) {
-          setSearchParams({ id: filteredOrgs[0].id.toString() })
-        } else {
-          setSearchParams({})
-        }
+      if (filteredOrgs.length > 0) {
+        setSearchParams({ id: filteredOrgs[0].id.toString() });
       } else {
-        console.error("Failed to delete organization")
+        setSearchParams({});
       }
     } catch (error) {
-      console.error("Error deleting organization:", error)
+      console.error("Error deleting organization:", error);
     }
-  }
+  };
 
   const selectedOrg = organizations.find((o) => o.id.toString() === selectedId)
 
