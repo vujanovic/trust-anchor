@@ -22,6 +22,10 @@ public class CertificateService {
         this.certificateRepository = certificateRepository;
     }
 
+    public List<Certificate> getCertificates() {
+        return certificateRepository.findAll();
+    }
+
     public List<Certificate> getUserCertificates(Long userId) {
         return certificateRepository.findByUserId(userId);
     }

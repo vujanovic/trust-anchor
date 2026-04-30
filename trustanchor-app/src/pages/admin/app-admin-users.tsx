@@ -1,7 +1,6 @@
 import { useSearchParams } from "react-router-dom"
 import {
   Building2,
-  Key,
   Lock,
   type LucideIcon,
   Mail,
@@ -183,13 +182,13 @@ export default function AppAdminUsers() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-none border-sidebar-border"
-                >
-                  <Key className="mr-2 size-3" /> Reset Password
-                </Button>
+                {/*<Button*/}
+                {/*  variant="outline"*/}
+                {/*  size="sm"*/}
+                {/*  className="rounded-none border-sidebar-border"*/}
+                {/*>*/}
+                {/*  <Key className="mr-2 size-3" /> Reset Password*/}
+                {/*</Button>*/}
                 <Button
                   variant="outline"
                   size="sm"
