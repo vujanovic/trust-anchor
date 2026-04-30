@@ -13,6 +13,7 @@ import AppUserMain from "@/pages/user/app-user-main"
 import AppCAUserMain from "@/pages/ca/app-ca-user-main"
 import AppRegistration from "@/pages/unauthenticated/app-registration.tsx"
 import AppLogin from "@/pages/unauthenticated/app-login.tsx"
+import AppVerification from "@/pages/unauthenticated/app-verification.tsx"
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
       <Route path="/" element={<AppHomePage />} />
       <Route path="register" element={<AppRegistration />} />
       <Route path="login" element={<AppLogin />} />
+      <Route path="verify-identity" element={<AppVerification />} />
 
       <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
         <Route path="admin" element={<AppAdminMain />}>

@@ -53,7 +53,7 @@ export default function AppAdminUsers() {
     const fetchData = async () => {
       try {
         const [userRes, orgRes] = await Promise.all([
-          api.get<User[]>("/api/v1/user"),
+          api.get<User[]>("/api/v1/user/role?userRole=CA_USER"),
           api.get<Organization[]>("/api/v1/org"),
         ])
 
