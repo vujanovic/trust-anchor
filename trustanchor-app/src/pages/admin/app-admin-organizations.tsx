@@ -64,21 +64,15 @@ export default function AdminOrganizationsPage() {
         registrationDate: new Date(data.registrationDate).toISOString(),
       }
 
-      const response = await fetch("/api/v1/org", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formattedPayload),
-      })
+      const response = await api.post<Organization>(
+        "/api/v1/org",
+        formattedPayload
+      )
 
-      if (response.ok) {
-        const newOrg: Organization = await response.json()
-        setOrganizations((prev) => [...prev, newOrg])
-        setSearchParams({ id: newOrg.id.toString() })
-      } else {
-        console.error("Failed to create organization", await response.text())
-      }
+      const newOrg = response.data
+
+      setOrganizations((prev) => [...prev, newOrg])
+      setSearchParams({ id: newOrg.id.toString() })
     } catch (error) {
       console.error("Error creating organization:", error)
     }

@@ -41,10 +41,14 @@ export default function AppOrganizationDialog({
     },
   })
 
-  const handleFormSubmit = (data: OrganizationFormValues) => {
-    onSubmit(data)
-    reset()
-    onClose()
+  const handleFormSubmit = async (data: OrganizationFormValues) => {
+    try {
+      await onSubmit(data)
+      reset()
+      onClose()
+    } catch (e) {
+      console.error("Form submission failed", e)
+    }
   }
 
   return (
