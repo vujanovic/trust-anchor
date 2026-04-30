@@ -4,7 +4,6 @@ import {
   Building2,
   CheckCircle2,
   Fingerprint,
-  Lock,
   type LucideIcon,
   Mail,
   Shield,
@@ -19,7 +18,7 @@ interface AppUserDialogProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: CaUserFormValues) => void
-  organizations: { id: string; name: string }[] // Potrebno za dropdown
+  organizations: { id: number; name: string }[]
 }
 
 export default function AppUserDialog({
@@ -39,14 +38,18 @@ export default function AppUserDialog({
       firstName: "",
       lastName: "",
       email: "",
-      password: "",
       organizationId: 0,
-      userRole: "USER",
+      userRole: "CA_USER",
     },
   })
 
   const handleFormSubmit: SubmitHandler<CaUserFormValues> = (data) => {
-    onSubmit(data)
+    const payload = {
+      ...data,
+      organizationId: Number(data.organizationId),
+      userRole: "CA_USER" as const,
+    }
+    onSubmit(payload)
     reset()
     onClose()
   }
@@ -105,25 +108,14 @@ export default function AppUserDialog({
               {errors.email && <ErrorMsg msg={errors.email.message} />}
             </div>
 
-            <div className="col-span-2 space-y-2">
-              <Label icon={Lock} label="Master Security Key (Min. 15 chars)" />
-              <Input
-                type="password"
-                {...register("password")}
-                placeholder="••••••••••••••••"
-                className="rounded-none border-sidebar-border bg-sidebar/50 focus-visible:ring-primary"
-              />
-              {errors.password && <ErrorMsg msg={errors.password.message} />}
-            </div>
-
             {/* Assignments */}
             <div className="space-y-2">
               <Label icon={Building2} label="Organization Anchor" />
               <select
-                {...register("organizationId")}
+                {...register("organizationId", { valueAsNumber: true })}
                 className="flex h-10 w-full rounded-none border border-sidebar-border bg-sidebar/50 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               >
-                <option value="">Select entity...</option>
+                <option value="0">Select entity...</option>
                 {organizations.map((org) => (
                   <option key={org.id} value={org.id}>
                     {org.name}
@@ -139,12 +131,10 @@ export default function AppUserDialog({
               <Label icon={Shield} label="Security Role" />
               <select
                 {...register("userRole")}
-                className="flex h-10 w-full rounded-none border border-sidebar-border bg-sidebar/50 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                disabled // Locks the field
+                className="flex h-10 w-full cursor-not-allowed rounded-none border border-sidebar-border bg-sidebar/50 px-3 py-2 text-sm opacity-60 focus:outline-none"
               >
-                <option value="">Select role...</option>
-                <option value="ADMIN">Administrator</option>
-                <option value="CA_OPERATOR">CA Operator</option>
-                <option value="AUDITOR">Security Auditor</option>
+                <option value="CA_USER">CA User</option>
               </select>
               {errors.userRole && <ErrorMsg msg={errors.userRole.message} />}
             </div>

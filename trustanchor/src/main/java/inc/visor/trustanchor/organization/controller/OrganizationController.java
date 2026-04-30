@@ -51,5 +51,4 @@ public class OrganizationController {
         organizationService.delete(organization);
         return ResponseEntity.ok().build();
     }
-
 }

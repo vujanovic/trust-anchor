@@ -17,72 +17,104 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { useEffect, useState } from "react"
 import AppUserDialog from "@/pages/admin/dialog/app-user-dialog.tsx"
+import { api } from "@/lib/axios.ts"
+import type { CaUserFormValues } from "@/lib/validations.ts"
 
-const adminUsers = [
-  {
-    id: "1",
-    firstName: "Nikola",
-    lastName: "Tesla",
-    email: "tesla@siit.rs",
-    orgName: "SIIT Security Lab",
-    role: "CA Administrator",
-    status: "Active",
-  },
-  {
-    id: "2",
-    firstName: "Mihajlo",
-    lastName: "Pupin",
-    email: "pupin@ftn.uns.ac.rs",
-    orgName: "FTN Novi Sad",
-    role: "Operator",
-    status: "Active",
-  },
-]
+interface User {
+  id: number
+  email: string
+  firstName: string
+  lastName: string
+  organizationId: number
+  status: string
+  role: string
+}
 
-const organizations = [
-  {
-    id: "1",
-    name: "SIIT Security Lab",
-    code: "SIIT",
-    email: "contact@siit.rs",
-    created: "2024-03-10",
-    website: "siit.rs",
-    location: "Novi Sad, Serbia",
-  },
-  {
-    id: "2",
-    name: "FTN Novi Sad",
-    code: "FTN",
-    email: "admin@ftn.uns.ac.rs",
-    created: "2024-01-15",
-    website: "uns.ac.rs",
-    location: "Novi Sad, Serbia",
-  },
-  {
-    id: "3",
-    name: "TrustAnchor Root",
-    code: "TAR",
-    email: "root@trustanchor.com",
-    created: "2023-12-01",
-    website: "trustanchor.com",
-    location: "Belgrade, Serbia",
-  },
-]
-
+interface Organization {
+  id: number
+  name: string
+  code: string
+  email: string
+  registrationDate: string
+  domain: string
+  location: string
+}
 export default function AppAdminUsers() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [users, setUsers] = useState<User[]>([])
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+
   const selectedId = searchParams.get("id")
 
   useEffect(() => {
-    if (!selectedId && adminUsers.length > 0) {
-      setSearchParams({ id: adminUsers[0].id }, { replace: true })
+    const fetchData = async () => {
+      try {
+        const [userRes, orgRes] = await Promise.all([
+          api.get<User[]>("/api/v1/user/role?userRole=CA_USER"),
+          api.get<Organization[]>("/api/v1/org"),
+        ])
+
+        setUsers(userRes.data)
+        setOrganizations(orgRes.data)
+
+        if (!selectedId && userRes.data.length > 0) {
+          setSearchParams(
+            { id: userRes.data[0].id.toString() },
+            { replace: true }
+          )
+        }
+      } catch (error) {
+        console.error("Failed to fetch security data:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
+    fetchData()
   }, [selectedId, setSearchParams])
 
-  const selectedUser = adminUsers.find((u) => u.id === selectedId)
+  const handleUserSubmit = async (data: CaUserFormValues) => {
+    try {
+      const response = await api.post<User>("/api/v1/user/ca", data)
+      const newUser = response.data
+      setUsers((prev) => [...prev, newUser])
+      setSearchParams({ id: newUser.id.toString() })
+    } catch (error) {
+      console.error("Error provisioning identity:", error)
+    }
+  }
 
-  const handleUserSubmit = async () => {}
+  const handleDeleteUser = async (id: number) => {
+    if (!window.confirm("Revoke access for this identity?")) return
+    try {
+      await api.delete(`/api/v1/user/ca/${id}`)
+      const filtered = users.filter((u) => u.id !== id)
+      setUsers(filtered)
+      if (filtered.length > 0) {
+        setSearchParams({ id: filtered[0].id.toString() })
+      } else {
+        setSearchParams({})
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error)
+    }
+  }
+
+  const filteredUsers = users.filter((u) => {
+    const term = searchQuery.toLowerCase()
+    return (
+      u.firstName.toLowerCase().includes(term) ||
+      u.lastName.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term)
+    )
+  })
+
+  const selectedUser = users.find((u) => u.id.toString() === selectedId)
+  const affiliatedOrg = organizations.find(
+    (o) => o.id === selectedUser?.organizationId
+  )
 
   return (
     <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-sidebar">
@@ -92,6 +124,7 @@ export default function AppAdminUsers() {
         onSubmit={handleUserSubmit}
         organizations={organizations}
       />
+
       <div className="flex w-80 flex-col border-r border-sidebar-border bg-sidebar-accent/5">
         <div className="space-y-4 border-b border-sidebar-border p-4">
           <h2 className="text-sm font-bold tracking-widest text-sidebar-foreground uppercase">
@@ -100,40 +133,49 @@ export default function AppAdminUsers() {
           <div className="relative">
             <Search className="absolute top-2.5 left-2 size-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
+              placeholder="Search identities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="h-9 rounded-none border-sidebar-border bg-sidebar/50 pl-8 focus-visible:ring-primary"
             />
           </div>
         </div>
 
-        <div className="flex-1">
-          {adminUsers.map((user) => (
-            <button
-              key={user.id}
-              onClick={() => setSearchParams({ id: user.id })}
-              className={`group flex w-full flex-col border-b border-sidebar-border/50 p-5 text-left transition-all hover:bg-sidebar-accent/30 ${
-                selectedId === user.id
-                  ? "border-l-2 border-l-primary bg-sidebar-accent/60"
-                  : "border-l-2 border-l-transparent"
-              }`}
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <span
-                  className={`font-bold tracking-tight ${selectedId === user.id ? "text-primary" : "text-sidebar-foreground"}`}
-                >
-                  {user.firstName} {user.lastName}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="animate-pulse p-4 text-center text-xs text-muted-foreground">
+              Syncing Ledger...
+            </div>
+          ) : (
+            filteredUsers.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => setSearchParams({ id: user.id.toString() })}
+                className={`group flex w-full flex-col border-b border-sidebar-border/50 p-5 text-left transition-all hover:bg-sidebar-accent/30 ${
+                  selectedId === user.id.toString()
+                    ? "border-l-2 border-l-primary bg-sidebar-accent/60"
+                    : "border-l-2 border-l-transparent"
+                }`}
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <span
+                    className={`font-bold tracking-tight ${selectedId === user.id.toString() ? "text-primary" : "text-sidebar-foreground"}`}
+                  >
+                    {user.firstName} {user.lastName}
+                  </span>
+                </div>
+                <span className="truncate text-[11px] text-muted-foreground italic">
+                  {user.email}
                 </span>
-              </div>
-              <span className="truncate text-[11px] text-muted-foreground italic">
-                {user.email}
-              </span>
-            </button>
-          ))}
+              </button>
+            ))
+          )}
         </div>
       </div>
+
       <div className="relative flex flex-1 flex-col bg-sidebar">
         {selectedUser ? (
-          <div className="flex h-full flex-col">
+          <div className="flex h-full flex-col overflow-y-auto">
             <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar-accent/5 px-8 py-4">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] tracking-tighter text-muted-foreground uppercase">
@@ -151,7 +193,8 @@ export default function AppAdminUsers() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-none border-sidebar-border hover:text-destructive"
+                  onClick={() => handleDeleteUser(selectedUser.id)}
+                  className="rounded-none border-sidebar-border hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="mr-2 size-3" /> Delete
                 </Button>
@@ -178,7 +221,7 @@ export default function AppAdminUsers() {
                       />
                       <p className="flex items-center gap-1.5 text-sm tracking-tight text-muted-foreground uppercase">
                         <Building2 className="size-3.5" />{" "}
-                        {selectedUser.orgName}
+                        {affiliatedOrg?.name || "System"}
                       </p>
                     </div>
                   </div>
@@ -197,7 +240,7 @@ export default function AppAdminUsers() {
                     <DetailBlock
                       icon={Building2}
                       label="Affiliated Organization"
-                      value={selectedUser.orgName}
+                      value={affiliatedOrg?.name || "N/A"}
                     />
                   </section>
 
@@ -207,8 +250,8 @@ export default function AppAdminUsers() {
                     </h3>
                     <DetailBlock
                       icon={ShieldCheck}
-                      label="Account Role"
-                      value={selectedUser.role}
+                      label="Account Status"
+                      value={selectedUser.status}
                     />
                     <DetailBlock
                       icon={Lock}
@@ -223,15 +266,14 @@ export default function AppAdminUsers() {
         ) : (
           <div className="flex h-full items-center justify-center">
             <div className="space-y-4 text-center">
-              <div className="mx-auto flex size-20 items-center justify-center border border-sidebar-border bg-sidebar-accent/10">
-                <Users className="size-8 text-muted-foreground/20" />
-              </div>
+              <Users className="mx-auto size-12 text-muted-foreground/20" />
               <p className="text-[10px] tracking-widest text-muted-foreground uppercase">
                 Select user to manage
               </p>
             </div>
           </div>
         )}
+
         <Button
           onClick={() => setIsDialogOpen(true)}
           size="lg"
@@ -255,14 +297,19 @@ function DetailBlock({
 }) {
   return (
     <div className="flex gap-4">
+      {/* Icon Container */}
       <div className="mt-1 text-primary">
         <Icon size={16} />
       </div>
+
+      {/* Text Container */}
       <div className="space-y-1">
         <p className="text-[9px] leading-none font-bold tracking-widest text-muted-foreground/50 uppercase">
           {label}
         </p>
-        <p className="text-sm font-semibold tracking-tight">{value}</p>
+        <p className="text-sm font-semibold tracking-tight text-sidebar-foreground">
+          {value || "N/A"}
+        </p>
       </div>
     </div>
   )

@@ -33,7 +33,7 @@ public class Organization {
     private String email;
 
     @Column(name = "domain")
-    private String website;
+    private String domain;
 
     @Column(name = "registration_date", nullable = false)
     private LocalDateTime registrationDate;

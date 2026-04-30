@@ -9,7 +9,7 @@ export default function AppAdminMain() {
       <TooltipProvider>
         <AppAdminSidebar />
         <main>
-          <Outlet/>
+          <Outlet />
         </main>
       </TooltipProvider>
     </SidebarProvider>

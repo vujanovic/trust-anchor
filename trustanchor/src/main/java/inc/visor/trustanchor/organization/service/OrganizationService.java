@@ -38,7 +38,7 @@ public class OrganizationService {
                 .name(dto.getName())
                 .location(dto.getLocation())
                 .email(dto.getEmail())
-                .website(dto.getWebsite())
+                .domain(dto.getDomain())
                 .registrationDate(dto.getRegistrationDate())
                 .build();
         return organizationRepository.save(organization);
@@ -49,7 +49,7 @@ public class OrganizationService {
         organization.setName(dto.getName());
         organization.setLocation(dto.getLocation());
         organization.setEmail(dto.getEmail());
-        organization.setWebsite(dto.getWebsite());
+        organization.setDomain(dto.getDomain());
         return organizationRepository.save(organization);
     }
 

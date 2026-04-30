@@ -2,7 +2,6 @@ import { useSearchParams } from "react-router-dom"
 import {
   Building2,
   Calendar,
-  Edit2,
   Globe,
   type LucideIcon,
   Mail,
@@ -18,54 +17,95 @@ import { Separator } from "@/components/ui/separator"
 import { useEffect, useState } from "react"
 import AppOrganizationDialog from "@/pages/admin/dialog/app-organization-dialog.tsx"
 import type { OrganizationFormValues } from "@/lib/validations"
+import { api } from "@/lib/axios.ts"
 
-const organizations = [
-  {
-    id: "1",
-    name: "SIIT Security Lab",
-    code: "SIIT",
-    email: "contact@siit.rs",
-    created: "2024-03-10",
-    website: "siit.rs",
-    location: "Novi Sad, Serbia",
-  },
-  {
-    id: "2",
-    name: "FTN Novi Sad",
-    code: "FTN",
-    email: "admin@ftn.uns.ac.rs",
-    created: "2024-01-15",
-    website: "uns.ac.rs",
-    location: "Novi Sad, Serbia",
-  },
-  {
-    id: "3",
-    name: "TrustAnchor Root",
-    code: "TAR",
-    email: "root@trustanchor.com",
-    created: "2023-12-01",
-    website: "trustanchor.com",
-    location: "Belgrade, Serbia",
-  },
-]
+interface Organization {
+  id: number
+  name: string
+  code: string
+  email: string
+  registrationDate: string
+  domain: string
+  location: string
+}
 
 export default function AdminOrganizationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+
   const selectedId = searchParams.get("id")
 
+  const filteredOrganizations = organizations.filter((org) => {
+    const query = searchQuery.toLowerCase()
+    return (
+      org.name.toLowerCase().includes(query) ||
+      org.code.toLowerCase().includes(query)
+    )
+  })
+
   useEffect(() => {
-    if (!selectedId && organizations.length > 0) {
-      setSearchParams({ id: organizations[0].id }, { replace: true })
+    const fetchOrganizations = async () => {
+      try {
+        const response = await api.get<Organization[]>("/api/v1/org")
+        const data = response.data
+        setOrganizations(data)
+        if (!selectedId && data.length > 0) {
+          setSearchParams({ id: data[0].id.toString() }, { replace: true })
+        }
+      } catch (error) {
+        console.error("Error fetching organizations:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    fetchOrganizations()
   }, [selectedId, setSearchParams])
 
   const handleCreateOrg = async (data: OrganizationFormValues) => {
-    console.log("Sending to Java Backend:", data)
-    // await axios.post('/api/v1/org', data)
+    try {
+      const formattedPayload = {
+        ...data,
+        registrationDate: new Date(data.registrationDate).toISOString(),
+      }
+
+      const response = await api.post<Organization>(
+        "/api/v1/org",
+        formattedPayload
+      )
+
+      const newOrg = response.data
+
+      setOrganizations((prev) => [...prev, newOrg])
+      setSearchParams({ id: newOrg.id.toString() })
+    } catch (error) {
+      console.error("Error creating organization:", error)
+    }
   }
 
-  const selectedOrg = organizations.find((o) => o.id === selectedId)
+  const handleDeleteOrg = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this entity?")) return
+
+    try {
+      await api.delete(`/api/v1/org/${id}`)
+
+      const filteredOrgs = organizations.filter((org) => org.id !== id)
+      setOrganizations(filteredOrgs)
+
+      if (filteredOrgs.length > 0) {
+        setSearchParams({ id: filteredOrgs[0].id.toString() })
+      } else {
+        setSearchParams({})
+      }
+    } catch (error) {
+      console.error("Error deleting organization:", error)
+    }
+  }
+
+  const selectedOrg = organizations.find((o) => o.id.toString() === selectedId)
 
   return (
     <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-sidebar">
@@ -82,40 +122,52 @@ export default function AdminOrganizationsPage() {
           <div className="relative">
             <Search className="absolute top-2.5 left-2 size-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search..."
+              placeholder="Search by name or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)} // Bind state
               className="h-9 rounded-none border-sidebar-border bg-sidebar/50 pl-8 focus-visible:ring-primary"
             />
           </div>
         </div>
 
-        <div className="flex-1">
-          {organizations.map((org) => (
-            <button
-              key={org.id}
-              onClick={() => setSearchParams({ id: org.id })}
-              className={`group flex w-full flex-col border-b border-sidebar-border/50 p-5 text-left transition-all hover:bg-sidebar-accent/30 ${
-                selectedId === org.id
-                  ? "border-l-2 border-l-primary bg-sidebar-accent/60"
-                  : "border-l-2 border-l-transparent"
-              }`}
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <span
-                  className={`font-bold tracking-tight ${selectedId === org.id ? "text-primary" : ""}`}
-                >
-                  {org.name}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="p-4 text-center text-xs text-muted-foreground">
+              Loading entities...
+            </div>
+          ) : filteredOrganizations.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted-foreground italic">
+              No entities found matching "{searchQuery}"
+            </div>
+          ) : (
+            filteredOrganizations.map((org) => (
+              <button
+                key={org.id}
+                onClick={() => setSearchParams({ id: org.id.toString() })}
+                className={`group flex w-full flex-col border-b border-sidebar-border/50 p-5 text-left transition-all hover:bg-sidebar-accent/30 ${
+                  selectedId === org.id.toString()
+                    ? "border-l-2 border-l-primary bg-sidebar-accent/60"
+                    : "border-l-2 border-l-transparent"
+                }`}
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <span
+                    className={`font-bold tracking-tight ${selectedId === org.id.toString() ? "text-primary" : ""}`}
+                  >
+                    {org.name}
+                  </span>
+                </div>
+                <span className="truncate text-[11px] text-muted-foreground italic">
+                  {org.email}
                 </span>
-              </div>
-              <span className="truncate text-[11px] text-muted-foreground italic">
-                {org.email}
-              </span>
-            </button>
-          ))}
+              </button>
+            ))
+          )}
         </div>
       </div>
       <div className="relative flex flex-1 flex-col bg-sidebar">
         {selectedOrg ? (
-          <div className="flex h-full flex-col">
+          <div className="flex h-full flex-col overflow-y-auto">
             <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar-accent/5 px-8 py-4">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] tracking-tighter text-muted-foreground uppercase">
@@ -123,16 +175,17 @@ export default function AdminOrganizationsPage() {
                 </span>
               </div>
               <div className="flex gap-2">
+                {/*<Button*/}
+                {/*  variant="outline"*/}
+                {/*  size="sm"*/}
+                {/*  className="rounded-none border-sidebar-border transition-colors hover:bg-sidebar-accent"*/}
+                {/*>*/}
+                {/*  <Edit2 className="mr-2 size-3" /> Edit*/}
+                {/*</Button>*/}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-none border-sidebar-border transition-colors hover:bg-sidebar-accent"
-                >
-                  <Edit2 className="mr-2 size-3" /> Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
+                  onClick={() => handleDeleteOrg(selectedOrg.id)}
                   className="rounded-none border-sidebar-border transition-colors hover:bg-destructive/20 hover:text-destructive"
                 >
                   <Trash2 className="mr-2 size-3" /> Delete
@@ -143,7 +196,7 @@ export default function AdminOrganizationsPage() {
             <div className="flex-1 p-12">
               <div className="w-full">
                 <div className="mb-12 flex items-start gap-6">
-                  <div className="flex size-20 items-center justify-center bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                  <div className="flex size-20 shrink-0 items-center justify-center bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                     <Building2 className="size-10" />
                   </div>
                   <div>
@@ -178,7 +231,7 @@ export default function AdminOrganizationsPage() {
                     <DetailBlock
                       icon={Globe}
                       label="Official Domain"
-                      value={selectedOrg.website}
+                      value={selectedOrg.domain}
                     />
                   </section>
 
@@ -189,7 +242,7 @@ export default function AdminOrganizationsPage() {
                     <DetailBlock
                       icon={Calendar}
                       label="Registration Date"
-                      value={selectedOrg.created}
+                      value={selectedOrg.registrationDate}
                     />
                     <DetailBlock
                       icon={ShieldCheck}
@@ -219,7 +272,9 @@ export default function AdminOrganizationsPage() {
                 <Building2 className="size-8 text-muted-foreground/30" />
               </div>
               <p className="text-[10px] tracking-widest text-muted-foreground uppercase">
-                Select entity to inspect
+                {isLoading
+                  ? "Connecting to backend..."
+                  : "Select entity to inspect"}
               </p>
             </div>
           </div>

@@ -27,7 +27,7 @@ public class CreateOrganizationDto {
     @NotBlank(message = "Domain is required")
     @Pattern(regexp = "^(?!://)([a-zA-Z0-9-_]+\\.)*[a-zA-Z0-9][a-zA-Z0-9-_]+\\.[a-zA-Z]{2,11}?$",
             message = "Invalid domain format")
-    private String website;
+    private String domain;
 
     @NotNull(message = "Registration date is required")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
