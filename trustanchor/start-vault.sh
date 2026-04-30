@@ -98,7 +98,7 @@ SECRET_BODY=$(cat << EOF
 {
     "data": {
         "jwt.secret": "$JWT_SECRET",
-        "master.encryption.key": "$ENCRYPTION_KEY"
+        "master.encryption.key": "$MASTER_ENCRYPTION_KEY"
     }
 }
 EOF
