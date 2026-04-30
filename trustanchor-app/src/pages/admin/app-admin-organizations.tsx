@@ -2,7 +2,6 @@ import { useSearchParams } from "react-router-dom"
 import {
   Building2,
   Calendar,
-  Edit2,
   Globe,
   type LucideIcon,
   Mail,
@@ -34,9 +33,18 @@ export default function AdminOrganizationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
 
   const selectedId = searchParams.get("id")
+
+  const filteredOrganizations = organizations.filter((org) => {
+    const query = searchQuery.toLowerCase()
+    return (
+      org.name.toLowerCase().includes(query) ||
+      org.code.toLowerCase().includes(query)
+    )
+  })
 
   useEffect(() => {
     const fetchOrganizations = async () => {
@@ -79,23 +87,23 @@ export default function AdminOrganizationsPage() {
   }
 
   const handleDeleteOrg = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this entity?")) return;
+    if (!window.confirm("Are you sure you want to delete this entity?")) return
 
     try {
-      await api.delete(`/api/v1/org/${id}`);
+      await api.delete(`/api/v1/org/${id}`)
 
-      const filteredOrgs = organizations.filter((org) => org.id !== id);
-      setOrganizations(filteredOrgs);
+      const filteredOrgs = organizations.filter((org) => org.id !== id)
+      setOrganizations(filteredOrgs)
 
       if (filteredOrgs.length > 0) {
-        setSearchParams({ id: filteredOrgs[0].id.toString() });
+        setSearchParams({ id: filteredOrgs[0].id.toString() })
       } else {
-        setSearchParams({});
+        setSearchParams({})
       }
     } catch (error) {
-      console.error("Error deleting organization:", error);
+      console.error("Error deleting organization:", error)
     }
-  };
+  }
 
   const selectedOrg = organizations.find((o) => o.id.toString() === selectedId)
 
@@ -114,7 +122,9 @@ export default function AdminOrganizationsPage() {
           <div className="relative">
             <Search className="absolute top-2.5 left-2 size-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search..."
+              placeholder="Search by name or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)} // Bind state
               className="h-9 rounded-none border-sidebar-border bg-sidebar/50 pl-8 focus-visible:ring-primary"
             />
           </div>
@@ -125,8 +135,12 @@ export default function AdminOrganizationsPage() {
             <div className="p-4 text-center text-xs text-muted-foreground">
               Loading entities...
             </div>
+          ) : filteredOrganizations.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted-foreground italic">
+              No entities found matching "{searchQuery}"
+            </div>
           ) : (
-            organizations.map((org) => (
+            filteredOrganizations.map((org) => (
               <button
                 key={org.id}
                 onClick={() => setSearchParams({ id: org.id.toString() })}
@@ -161,13 +175,13 @@ export default function AdminOrganizationsPage() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-none border-sidebar-border transition-colors hover:bg-sidebar-accent"
-                >
-                  <Edit2 className="mr-2 size-3" /> Edit
-                </Button>
+                {/*<Button*/}
+                {/*  variant="outline"*/}
+                {/*  size="sm"*/}
+                {/*  className="rounded-none border-sidebar-border transition-colors hover:bg-sidebar-accent"*/}
+                {/*>*/}
+                {/*  <Edit2 className="mr-2 size-3" /> Edit*/}
+                {/*</Button>*/}
                 <Button
                   variant="outline"
                   size="sm"
