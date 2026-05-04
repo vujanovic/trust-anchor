@@ -12,8 +12,8 @@ import lombok.Setter;
 @Setter
 @Getter
 public class IssueCertificateDto {
-    @NotNull Long issuerCertificateId;
-    @NotNull CertificateType certificateType;   // INTERMEDIATE or END_ENTITY only for CA_USER
+    Long issuerCertificateId;
+    @NotNull CertificateType certificateType;
     @NotBlank String commonName;
     @NotBlank String organizationName;
     String organizationalUnit;
@@ -21,7 +21,5 @@ public class IssueCertificateDto {
     String email;
     @NotNull LocalDateTime notBefore;
     @NotNull LocalDateTime notAfter;
-    @NotNull ExtensionsDto extensions;
-
-
+    ExtensionsDto extensions;
 }

@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -49,6 +50,20 @@ public class GlobalExceptionHandler {
             .body(new ErrorResponse(ex.getMessage(), "401"));
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(new ErrorResponse(ex.getReason(), String.valueOf(ex.getStatusCode().value())));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleAllUncaughtExceptions(Exception ex) {
+        // Log the actual stack trace so you can see it in terminal
+        ex.printStackTrace();
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("An unexpected error occurred: " + ex.getMessage(), "500"));
+    }
     
     @ExceptionHandler(UnauthorizedAccessException.class)
     public ResponseEntity<Map<String, Object>> handleUnauthorizedAccess(UnauthorizedAccessException ex) {
