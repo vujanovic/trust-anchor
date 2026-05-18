@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { api } from "@/lib/axios.ts"
+import { DownloadCertificateSheet } from "@/pages/user/dialog/download-certificate-sheet"
+import type { CertificateDto } from "@/types/certificate"
 
 interface Certificate {
   id: number
@@ -41,6 +43,7 @@ interface Certificate {
   isValid: boolean
   isCACertificate: boolean
   privateKeyDownloaded: boolean
+  hasPrivateKey: boolean
 }
 
 export default function AppAdminCertificates() {
@@ -50,6 +53,7 @@ export default function AppAdminCertificates() {
   const [certificates, setCertificates] = useState<Certificate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [downloading, setDownloading] = useState<CertificateDto | null>(null)
 
   useEffect(() => {
     const fetchCertificates = async () => {
@@ -89,7 +93,9 @@ export default function AppAdminCertificates() {
       <div className="flex h-full w-full flex-1 items-center justify-center bg-sidebar">
         <div className="flex flex-col items-center gap-4 text-muted-foreground">
           <Loader2 className="size-8 animate-spin text-primary" />
-          <p className="text-xs font-bold tracking-[0.2em] uppercase">Fetching Registry...</p>
+          <p className="text-xs font-bold tracking-[0.2em] uppercase">
+            Fetching Registry...
+          </p>
         </div>
       </div>
     )
@@ -160,7 +166,9 @@ export default function AppAdminCertificates() {
                   ) : (
                     <ShieldX className="size-4 text-destructive" />
                   )}
-                  <span className={`text-[10px] font-bold tracking-widest uppercase ${selectedCert.status === "VALID" ? "text-emerald-500" : "text-destructive"}`}>
+                  <span
+                    className={`text-[10px] font-bold tracking-widest uppercase ${selectedCert.status === "VALID" ? "text-emerald-500" : "text-destructive"}`}
+                  >
                     {selectedCert.status}
                   </span>
                 </div>
@@ -176,10 +184,12 @@ export default function AppAdminCertificates() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!selectedCert.privateKeyDownloaded}
                   className="rounded-none border-sidebar-border"
+                  onClick={() =>
+                    setDownloading(selectedCert as unknown as CertificateDto)
+                  }
                 >
-                  <Download className="mr-2 size-3" /> Key Downloaded: {selectedCert.privateKeyDownloaded ? "Yes" : "No"}
+                  <Download className="mr-2 size-3" /> Download
                 </Button>
                 {selectedCert.status === "VALID" && (
                   <Button
@@ -209,7 +219,8 @@ export default function AppAdminCertificates() {
                           <ArrowDownLeft className="size-3 text-primary" />{" "}
                           Organization:{" "}
                           <span className="font-semibold text-sidebar-foreground">
-                            {selectedCert.organizationName || "N/A"} ({selectedCert.country})
+                            {selectedCert.organizationName || "N/A"} (
+                            {selectedCert.country})
                           </span>
                         </p>
                       </div>
@@ -260,7 +271,9 @@ export default function AppAdminCertificates() {
                       <DetailBlock
                         icon={ExternalLink}
                         label="CRL Distribution Point"
-                        value={selectedCert.crlDistributionPoint || "Not Configured"}
+                        value={
+                          selectedCert.crlDistributionPoint || "Not Configured"
+                        }
                         isMono
                       />
                     </div>
@@ -280,7 +293,9 @@ export default function AppAdminCertificates() {
                         : "Subject Type=End Entity"}
                     </div>
 
-                    <div className="text-muted-foreground">Type Classifier:</div>
+                    <div className="text-muted-foreground">
+                      Type Classifier:
+                    </div>
                     <div className="text-sidebar-foreground">
                       {selectedCert.certificateType}
                     </div>
@@ -292,14 +307,16 @@ export default function AppAdminCertificates() {
                       DNS:{selectedCert.commonName}
                     </div>
 
-                    {selectedCert.status === "REVOKED" && selectedCert.revocationReason && (
-                      <>
-                        <div className="text-red-500">Revocation Reason:</div>
-                        <div className="font-bold text-red-500">
-                          {selectedCert.revocationReason} @ {formatDate(selectedCert.revokedAt!)}
-                        </div>
-                      </>
-                    )}
+                    {selectedCert.status === "REVOKED" &&
+                      selectedCert.revocationReason && (
+                        <>
+                          <div className="text-red-500">Revocation Reason:</div>
+                          <div className="font-bold text-red-500">
+                            {selectedCert.revocationReason} @{" "}
+                            {formatDate(selectedCert.revokedAt!)}
+                          </div>
+                        </>
+                      )}
                   </div>
                 </div>
               </div>
@@ -318,16 +335,32 @@ export default function AppAdminCertificates() {
           </div>
         )}
       </div>
+
+      <DownloadCertificateSheet
+        cert={downloading}
+        open={!!downloading}
+        onClose={() => setDownloading(null)}
+        onDownloaded={(certId) => {
+          setCertificates((prev) =>
+            prev.map((c) =>
+              c.id === certId
+                ? { ...c, privateKeyDownloaded: true, hasPrivateKey: false }
+                : c
+            )
+          )
+          setDownloading(null)
+        }}
+      />
     </div>
   )
 }
 
 function DetailBlock({
-                       icon: Icon,
-                       label,
-                       value,
-                       isMono = false,
-                     }: {
+  icon: Icon,
+  label,
+  value,
+  isMono = false,
+}: {
   icon: LucideIcon
   label: string
   value: string

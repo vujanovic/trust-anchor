@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { AlertCircle, Info, ShieldCheck } from "lucide-react"
+import { AlertCircle, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { api } from "@/lib/axios.ts"
+import { useToast } from "@/hooks/use-toast"
 
 interface CertificateDto {
   id: number
@@ -35,6 +36,8 @@ interface ExtensionsDto {
   extendedKeyUsages: string[]
 }
 
+const toIso = (dtl: string) => `${dtl}:00`
+
 const formatDateTimeLocal = (date: Date) => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
@@ -45,8 +48,7 @@ const formatDateTimeLocal = (date: Date) => {
 }
 
 export default function AppAdminIssue() {
-  const [submitError, setSubmitError] = useState<string>("")
-  const [submitSuccess, setSubmitSuccess] = useState<string>("")
+  const { toast } = useToast()
 
   const [certType, setCertType] = useState<
     "ROOT" | "INTERMEDIATE" | "END_ENTITY"
@@ -92,15 +94,15 @@ export default function AppAdminIssue() {
         if (availableIssuers.length > 0) {
           setIssuerCertId(String(availableIssuers[0].id))
         }
-      } catch (err) {
-        setSubmitError(err + '')
+      } catch {
+        toast({ message: "Failed to load issuers.", variant: "error" })
       } finally {
         setLoadingIssuers(false)
       }
     }
 
     fetchIssuers()
-  }, [certType])
+  }, [certType, toast])
 
   const handleCertTypeChange = (
     newType: "ROOT" | "INTERMEDIATE" | "END_ENTITY"
@@ -150,8 +152,8 @@ export default function AppAdminIssue() {
         organizationalUnit: formData.organizationalUnit || undefined,
         country: formData.country,
         email: formData.email || undefined,
-        notBefore: formData.notBefore,
-        notAfter: formData.notAfter,
+        notBefore: toIso(formData.notBefore),
+        notAfter: toIso(formData.notAfter),
         extensions: {
           isCA: extensions.isCA,
           keyCertSign: extensions.keyCertSign,
@@ -165,9 +167,10 @@ export default function AppAdminIssue() {
       }
 
       const res = await api.post("/api/v1/certificates/issue", payload)
-
-      setSubmitSuccess(`Certificate ${res.data.commonName} issued successfully`)
-      setSubmitError("")
+      toast({
+        message: `Certificate "${res.data.commonName}" issued successfully.`,
+        variant: "success",
+      })
 
       setFormData({
         commonName: "",
@@ -175,10 +178,10 @@ export default function AppAdminIssue() {
         organizationalUnit: "",
         country: "",
         email: "",
-        notBefore: new Date().toISOString().slice(0, 16),
-        notAfter: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 16),
+        notBefore: formatDateTimeLocal(new Date()),
+        notAfter: formatDateTimeLocal(
+          new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+        ),
       })
       setExtensions({
         isCA: false,
@@ -190,10 +193,15 @@ export default function AppAdminIssue() {
         nonRepudiation: false,
         extendedKeyUsages: [],
       })
-    } catch (err) {
-      console.error("Failed to issue certificate", err)
-      setSubmitError(err + '')
-      setSubmitSuccess("")
+    } catch (err: unknown) {
+      const data = (err as { response?: { data?: unknown } })?.response?.data
+      const msg =
+        typeof data === "object" && data !== null && "message" in data
+          ? (data as { message: string }).message
+          : typeof data === "object" && data !== null
+            ? Object.values(data as Record<string, string>).join(", ")
+            : "Certificate issuance failed."
+      toast({ message: msg, variant: "error" })
     } finally {
       setIssuing(false)
     }
@@ -205,8 +213,7 @@ export default function AppAdminIssue() {
     if (formData.country.length !== 2) return false
     if (certType !== "ROOT" && !issuerCertId) return false
     if (!formData.notBefore || !formData.notAfter) return false
-    return new Date(formData.notBefore) < new Date(formData.notAfter);
-
+    return new Date(formData.notBefore) < new Date(formData.notAfter)
   }
 
   return (
@@ -577,30 +584,6 @@ export default function AppAdminIssue() {
               </div>
             </div>
           </section>
-
-          {submitError && (
-            <div className="rounded-none border border-red-500 bg-red-500/10 p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 size-5 text-red-500" />
-                <div>
-                  <p className="font-semibold text-red-500">Error</p>
-                  <p className="text-sm text-red-400">{submitError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {submitSuccess && (
-            <div className="rounded-none border border-green-500 bg-green-500/10 p-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 size-5 text-green-500" />
-                <div>
-                  <p className="font-semibold text-green-500">Success</p>
-                  <p className="text-sm text-green-400">{submitSuccess}</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="border-t border-sidebar-border pt-12">
             <Card className="rounded-none border-sidebar-border bg-sidebar-accent/10 shadow-none">
