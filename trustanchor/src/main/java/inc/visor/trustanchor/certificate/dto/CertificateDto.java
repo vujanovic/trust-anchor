@@ -1,5 +1,7 @@
 package inc.visor.trustanchor.certificate.dto;
 
+import java.time.LocalDateTime;
+
 import inc.visor.trustanchor.certificate.entity.Certificate;
 import inc.visor.trustanchor.certificate.enums.CertificateStatus;
 import inc.visor.trustanchor.certificate.enums.CertificateType;
@@ -8,8 +10,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -34,7 +34,8 @@ public class CertificateDto {
     private Boolean isValid;
     private Boolean isCACertificate;
     private Boolean privateKeyDownloaded;
-
+    private Boolean hasPrivateKey;
+    
     public CertificateDto(Certificate certificate) {
         this.id = certificate.getId();
         this.serialNumber = certificate.getSerialNumber();
@@ -54,5 +55,6 @@ public class CertificateDto {
         this.isValid = certificate.isValid();
         this.isCACertificate = certificate.isCACertificate();
         this.privateKeyDownloaded = certificate.getPrivateKeyDownloaded();
+        this.hasPrivateKey = certificate.getPrivateKeyEncrypted() != null && !certificate.getPrivateKeyDownloaded();
     }
 }

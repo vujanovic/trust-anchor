@@ -3,6 +3,7 @@ import { CertificateTable } from "@/components/custom/certificate-table"
 import { StatCard } from "@/components/custom/stat-card"
 import { RequestTab } from "@/components/custom/request-tab"
 import { RevocationModal } from "./dialog/revocation-modal"
+import { DownloadCertificateSheet } from "./dialog/download-certificate-sheet"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -52,6 +53,7 @@ export default function AppUserMain() {
   const [certs, setCerts] = useState<CertificateDto[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [revoking, setRevoking] = useState<CertificateDto | null>(null)
+  const [downloading, setDownloading] = useState<CertificateDto | null>(null)
   const [darkMode, setDarkMode] = useState(true)
 
   const { logout, user } = useAuth()
@@ -255,13 +257,15 @@ export default function AppUserMain() {
               <p className="text-sm font-bold text-card-foreground">
                 Certificate List
               </p>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleRefresh}
                 disabled={isLoading}
               >
-                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`}
+                />
                 Refresh
               </Button>
             </div>
@@ -270,7 +274,11 @@ export default function AppUserMain() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <CertificateTable certs={certs} onRevoke={handleRevoke} />
+              <CertificateTable
+                certs={certs}
+                onRevoke={handleRevoke}
+                onDownload={(cert) => setDownloading(cert)}
+              />
             )}
           </Card>
         )}
@@ -281,6 +289,21 @@ export default function AppUserMain() {
           </Card>
         )}
       </div>
+
+      <DownloadCertificateSheet
+        cert={downloading}
+        open={!!downloading}
+        onClose={() => setDownloading(null)}
+        onDownloaded={(certId) =>
+          setCerts((prev) =>
+            prev.map((c) =>
+              c.id === certId
+                ? { ...c, privateKeyDownloaded: true, hasPrivateKey: false }
+                : c
+            )
+          )
+        }
+      />
 
       {/* Revocation Modal */}
       {revoking && (

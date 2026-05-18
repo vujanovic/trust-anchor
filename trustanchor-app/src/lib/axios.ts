@@ -53,8 +53,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(
-          `${config.url}/api/v1/auth/refresh`, {
+        const { data } = await axios.post(`${config.url}/api/v1/auth/refresh`, {
           refreshToken,
         })
         tokenStore.set(data.accessToken)

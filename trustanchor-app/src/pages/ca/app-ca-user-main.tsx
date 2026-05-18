@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/use-auth"
+import { useToast } from "@/hooks/use-toast"
 import { StatCard } from "@/components/custom/stat-card"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -17,6 +18,7 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  Download,
   Layers,
   LogOut,
   Moon,
@@ -33,6 +35,7 @@ import {
   issueCertificate,
 } from "@/service/certificate-service"
 import type { CertificateDto } from "@/types/certificate"
+import { DownloadCertificateSheet } from "@/pages/user/dialog/download-certificate-sheet"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -123,11 +126,11 @@ export default function AppCAUserMain() {
   const [form, setForm] = useState(makeForm)
   const [showExt, setShowExt] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [downloading, setDownloading] = useState<CertificateDto | null>(null)
   const [darkMode, setDarkMode] = useState(true)
 
   const { logout, user } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
 
   const userName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()
@@ -217,8 +220,6 @@ export default function AppCAUserMain() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setSubmitError(null)
-    setSubmitSuccess(false)
     setSubmitting(true)
     try {
       await issueCertificate({
@@ -233,14 +234,17 @@ export default function AppCAUserMain() {
         notAfter: toIso(form.notAfter),
         extensions: form.extensions,
       })
-      setSubmitSuccess(true)
+      toast({ message: "Certificate issued successfully.", variant: "success" })
       setForm(makeForm())
       loadCerts()
       loadIssuers()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message
-      setSubmitError(msg ?? "Certificate issuance failed.")
+      toast({
+        message: msg ?? "Certificate issuance failed.",
+        variant: "error",
+      })
     } finally {
       setSubmitting(false)
     }
@@ -402,6 +406,7 @@ export default function AppCAUserMain() {
                     <TableHead>Status</TableHead>
                     <TableHead>Valid From</TableHead>
                     <TableHead>Valid Until</TableHead>
+                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -421,6 +426,17 @@ export default function AppCAUserMain() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {fmtDate(cert.notAfter)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto px-2 py-1"
+                          onClick={() => setDownloading(cert)}
+                        >
+                          <Download className="mr-1.5 h-3.5 w-3.5" />
+                          Download
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -707,17 +723,6 @@ export default function AppCAUserMain() {
                 )}
               </div>
 
-              {submitError && (
-                <p className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-                  {submitError}
-                </p>
-              )}
-              {submitSuccess && (
-                <p className="rounded-md bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
-                  Certificate issued successfully.
-                </p>
-              )}
-
               <Button
                 type="submit"
                 disabled={submitting}
@@ -729,6 +734,21 @@ export default function AppCAUserMain() {
           </Card>
         )}
       </div>
+
+      <DownloadCertificateSheet
+        cert={downloading}
+        open={!!downloading}
+        onClose={() => setDownloading(null)}
+        onDownloaded={(certId) =>
+          setCerts((prev) =>
+            prev.map((c) =>
+              c.id === certId
+                ? { ...c, privateKeyDownloaded: true, hasPrivateKey: false }
+                : c
+            )
+          )
+        }
+      />
 
       <footer className="mt-16 border-t border-border px-6 py-8 text-center">
         <p className="text-xs text-muted-foreground">

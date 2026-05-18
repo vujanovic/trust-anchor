@@ -29,6 +29,7 @@ export interface CertificateDto {
   isValid: boolean
   isCACertificate: boolean
   privateKeyDownloaded: boolean
+  hasPrivateKey: boolean
 }
 
 export interface ExtensionsRequest {

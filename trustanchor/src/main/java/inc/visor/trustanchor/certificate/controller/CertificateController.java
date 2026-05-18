@@ -1,8 +1,27 @@
 package inc.visor.trustanchor.certificate.controller;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import inc.visor.trustanchor.certificate.dto.CertificateDto;
+import inc.visor.trustanchor.certificate.dto.DownloadPkcs12Request;
 import inc.visor.trustanchor.certificate.dto.IssueCertificateDto;
 import inc.visor.trustanchor.certificate.entity.Certificate;
+import inc.visor.trustanchor.certificate.service.CertificateDownloadService;
 import inc.visor.trustanchor.certificate.service.CertificateGenerationService;
 import inc.visor.trustanchor.certificate.service.CertificateService;
 import inc.visor.trustanchor.exception.UnauthorizedAccessException;
@@ -10,14 +29,6 @@ import inc.visor.trustanchor.user.entity.AnchorUserDetails;
 import inc.visor.trustanchor.user.entity.UserRole;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/certificates")
@@ -26,6 +37,7 @@ public class CertificateController {
 
     private final CertificateService certificateService;
     private final CertificateGenerationService certificateGenerationService;
+    private final CertificateDownloadService certificateDownloadService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN')")
@@ -46,14 +58,10 @@ public class CertificateController {
     @PreAuthorize("hasAnyRole('ADMIN', 'CA_USER')")
     public ResponseEntity<CertificateDto> issueCertificate(
             @Valid @RequestBody IssueCertificateDto dto,
-            @AuthenticationPrincipal AnchorUserDetails currentUser) {
+            @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
         if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
-        try {
-            Certificate certificate = certificateGenerationService.issue(dto, currentUser);
-            return ResponseEntity.status(HttpStatus.CREATED).body(new CertificateDto(certificate));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
+        Certificate certificate = certificateGenerationService.issue(dto, currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new CertificateDto(certificate));
     }
 
     @GetMapping("/issuers")
@@ -81,5 +89,18 @@ public class CertificateController {
         List<CertificateDto> certs = certificateService.getOrganizationCertificates(resolvedOrgId)
                 .stream().map(CertificateDto::new).collect(Collectors.toList());
         return ResponseEntity.ok(certs);
+    }
+
+    @PostMapping("/{id}/download/pkcs12")
+    public ResponseEntity<byte[]> downloadPkcs12(
+            @PathVariable Long id,
+            @Valid @RequestBody DownloadPkcs12Request request,
+            @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+        byte[] pkcs12 = certificateDownloadService.downloadPkcs12(id, request.password(), currentUser);
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"certificate.p12\"")
+            .contentType(MediaType.parseMediaType("application/x-pkcs12"))
+            .body(pkcs12);
     }
 }
