@@ -1,5 +1,9 @@
 package inc.visor.trustanchor.certificate.service;
 
+import java.io.ByteArrayInputStream;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -61,5 +65,22 @@ public class CertificateService {
             throw new NotFoundException("Certificate not found");
         }
         return certificate;
+    }
+
+    @Transactional(readOnly = true)
+    public List<X509Certificate> buildCertificateChain(Certificate certificate) throws Exception {
+        List<X509Certificate> chain = new ArrayList<>();
+        Certificate current = certificate;
+        while (current != null) {
+            X509Certificate x509 = (X509Certificate) CertificateFactory.getInstance("X509").generateCertificate(new ByteArrayInputStream(current.getCertificateContent()));
+            chain.add(x509);
+
+            Long issuerId = current.getIssuerCertificate() != null ? current.getIssuerCertificate().getId() : null;
+            if (issuerId == null || issuerId.equals(current.getId())) {
+                break; // Reached self-signed or no issuer
+            }
+            current = certificateRepository.findById(issuerId).orElse(null);
+        }
+        return chain;
     }
 }
