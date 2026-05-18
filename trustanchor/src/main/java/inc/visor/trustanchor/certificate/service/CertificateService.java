@@ -66,6 +66,11 @@ public class CertificateService {
         return certificateRepository.findByOrganizationId(organizationId);
     }
 
+    public Void save(Certificate cert) {
+        certificateRepository.save(cert);
+        return null;
+    }
+
     public List<Certificate> getAvailableIssuers(Long organizationId, UserRole userRole) {
         List<CertificateType> caTypes = List.of(CertificateType.ROOT, CertificateType.INTERMEDIATE);
         List<Certificate> candidates = switch (userRole) {
