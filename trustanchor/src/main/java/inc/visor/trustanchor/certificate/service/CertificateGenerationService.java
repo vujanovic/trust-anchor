@@ -1,25 +1,31 @@
 package inc.visor.trustanchor.certificate.service;
 
-import inc.visor.trustanchor.certificate.dto.ExtensionsDto;
-import inc.visor.trustanchor.certificate.dto.IssueCertificateDto;
-import inc.visor.trustanchor.certificate.entity.Certificate;
-import inc.visor.trustanchor.certificate.enums.CertificateStatus;
-import inc.visor.trustanchor.certificate.enums.CertificateType;
-import inc.visor.trustanchor.certificate.repository.CertificateRepository;
-import inc.visor.trustanchor.encryption.dto.EncryptedData;
-import inc.visor.trustanchor.encryption.service.EncryptionService;
-import inc.visor.trustanchor.encryption.service.OrganizationKeyService;
-import inc.visor.trustanchor.exception.NotFoundException;
-import inc.visor.trustanchor.user.entity.AnchorUserDetails;
-import inc.visor.trustanchor.user.entity.User;
-import inc.visor.trustanchor.user.entity.UserRole;
-import inc.visor.trustanchor.user.service.UserService;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import java.io.ByteArrayInputStream;
+import java.math.BigInteger;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import javax.crypto.SecretKey;
+
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -30,19 +36,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.crypto.SecretKey;
-import java.io.ByteArrayInputStream;
-import java.math.BigInteger;
-import java.security.*;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import inc.visor.trustanchor.certificate.dto.ExtensionsDto;
+import inc.visor.trustanchor.certificate.dto.IssueCertificateDto;
+import inc.visor.trustanchor.certificate.entity.Certificate;
+import inc.visor.trustanchor.certificate.enums.CertificateStatus;
+import inc.visor.trustanchor.certificate.enums.CertificateType;
+import inc.visor.trustanchor.encryption.dto.EncryptedData;
+import inc.visor.trustanchor.encryption.service.EncryptionService;
+import inc.visor.trustanchor.encryption.service.OrganizationKeyService;
+import inc.visor.trustanchor.exception.NotFoundException;
+import inc.visor.trustanchor.user.entity.AnchorUserDetails;
+import inc.visor.trustanchor.user.entity.User;
+import inc.visor.trustanchor.user.entity.UserRole;
+import inc.visor.trustanchor.user.service.UserService;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -51,10 +59,10 @@ public class CertificateGenerationService {
     private static final String SIGN_ALGORITHM = "SHA256withRSA";
     private static final int KEY_SIZE = 2048;
 
-    private final CertificateRepository certificateRepository;
     private final EncryptionService encryptionService;
     private final OrganizationKeyService orgKeyService;
     private final UserService userService;
+    private final CertificateService certificateService;
 
     @PostConstruct
     public void registerBCProvider() {
@@ -76,8 +84,7 @@ public class CertificateGenerationService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Issuer certificate ID is required for non-ROOT certificates");
             }
-            issuerCert = certificateRepository.findById(dto.getIssuerCertificateId())
-                    .orElseThrow(() -> new NotFoundException("Issuer certificate not found"));
+            issuerCert = certificateService.findById(dto.getIssuerCertificateId());
 
             if (!issuerCert.isCACertificate()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -114,7 +121,7 @@ public class CertificateGenerationService {
                                 + issuerCert.getNotAfter() + ")");
             }
 
-            issuerPrivKey = decryptCertificatePrivateKey(issuerCert);
+            issuerPrivKey = certificateService.decryptCertificatePrivateKey(issuerCert);
             issuerX509 = parseX509(issuerCert.getCertificateContent());
         } else {
             if (currentUser.getUser().getUserRole() != UserRole.ADMIN) {
@@ -206,7 +213,7 @@ public class CertificateGenerationService {
             cert.setStatus(CertificateStatus.ACTIVE);
             cert.setExtensions(extensionsToJson(ext));
 
-            return certificateRepository.save(cert);
+            return certificateService.saveCertificate(cert);
 
         } catch (ResponseStatusException e) {
             throw e;
@@ -259,13 +266,6 @@ public class CertificateGenerationService {
 
             current = current.getIssuerCertificate();
         }
-    }
-
-    private java.security.PrivateKey decryptCertificatePrivateKey(Certificate cert) throws Exception {
-        EncryptedData enc = EncryptedData.unpack(cert.getPrivateKeyEncrypted());
-        SecretKey orgKey = orgKeyService.getOrCreateOrgKey(cert.getOrganizationId());
-        byte[] keyBytes = encryptionService.decrypt(enc, orgKey);
-        return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
     }
 
     private X509Certificate parseX509(byte[] der) throws Exception {
