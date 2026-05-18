@@ -1,3 +1,4 @@
+import { api } from "@/lib/axios"
 import { createService } from "@/lib/base-service"
 import type {
   CertificateDto,
@@ -6,7 +7,7 @@ import type {
 
 const service = createService("/certificates")
 
-export const getMyCertificates = () => service.get<CertificateDto[]>()
+export const getMyCertificates = () => service.get<CertificateDto[]>("/me")
 
 export const getOrganizationCertificates = (orgId?: number) =>
   service.get<CertificateDto[]>("/organization", {
@@ -18,3 +19,10 @@ export const getAvailableIssuers = () =>
 
 export const issueCertificate = (dto: IssueCertificateRequest) =>
   service.post<CertificateDto>("/issue", dto)
+
+export const downloadPkcs12 = (id: number, password: string) =>
+  api.post(
+    `/api/v1/certificates/${id}/download/pkcs12`,
+    { password },
+    { responseType: "blob" }
+  )

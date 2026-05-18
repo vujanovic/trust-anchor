@@ -6,13 +6,18 @@ import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { BrowserRouter } from "react-router-dom"
 import { AuthProvider } from "@/hooks/use-auth.tsx"
+import { ToastProvider } from "@/hooks/use-toast.tsx"
+import { Toaster } from "@/components/ui/toaster.tsx"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ToastProvider>
+            <App />
+            <Toaster />
+          </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

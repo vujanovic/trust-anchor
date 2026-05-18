@@ -58,14 +58,10 @@ public class CertificateController {
     @PreAuthorize("hasAnyRole('ADMIN', 'CA_USER')")
     public ResponseEntity<CertificateDto> issueCertificate(
             @Valid @RequestBody IssueCertificateDto dto,
-            @AuthenticationPrincipal AnchorUserDetails currentUser) {
+            @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
         if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
-        try {
-            Certificate certificate = certificateGenerationService.issue(dto, currentUser);
-            return ResponseEntity.status(HttpStatus.CREATED).body(new CertificateDto(certificate));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
+        Certificate certificate = certificateGenerationService.issue(dto, currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new CertificateDto(certificate));
     }
 
     @GetMapping("/issuers")

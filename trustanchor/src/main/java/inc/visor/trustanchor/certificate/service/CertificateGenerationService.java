@@ -18,6 +18,7 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 
+import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
@@ -44,7 +45,6 @@ import inc.visor.trustanchor.certificate.enums.CertificateType;
 import inc.visor.trustanchor.encryption.dto.EncryptedData;
 import inc.visor.trustanchor.encryption.service.EncryptionService;
 import inc.visor.trustanchor.encryption.service.OrganizationKeyService;
-import inc.visor.trustanchor.exception.NotFoundException;
 import inc.visor.trustanchor.user.entity.AnchorUserDetails;
 import inc.visor.trustanchor.user.entity.User;
 import inc.visor.trustanchor.user.entity.UserRole;
@@ -136,9 +136,8 @@ public class CertificateGenerationService {
 
         User targetUser = null;
         if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
-            targetUser = userService.findByEmail(dto.getEmail())
-                    .orElseThrow(() -> new NotFoundException("Target user's email not found"));
-            if (!isRoot && currentUser.getUser().getUserRole() == UserRole.CA_USER) {
+            targetUser = userService.findByEmail(dto.getEmail()).orElse(null);
+            if (targetUser != null && !isRoot && currentUser.getUser().getUserRole() == UserRole.CA_USER) {
                 long userOrgId = currentUser.getUser().getOrganization().getId();
                 long targetUserOrgId = targetUser.getOrganization().getId();
                 if (userOrgId != targetUserOrgId) {
@@ -178,7 +177,7 @@ public class CertificateGenerationService {
                 signingKey = keyPair.getPrivate();
                 issuerPublicKey = keyPair.getPublic();
             } else {
-                issuerDN = X500Name.getInstance(issuerX509.getSubjectX500Principal());
+                issuerDN = X500Name.getInstance(ASN1Primitive.fromByteArray(issuerX509.getSubjectX500Principal().getEncoded()));
                 signingKey = issuerPrivKey;
                 issuerPublicKey = issuerX509.getPublicKey();
             }
