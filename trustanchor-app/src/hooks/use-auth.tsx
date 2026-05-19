@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { UserDto } from "@/types/auth"
+import type { LoginResponse, UserDto } from "@/types/auth"
 import {
   createContext,
   useContext,
@@ -14,8 +14,10 @@ interface AuthContextType {
   user: UserDto | null
   isAuthenticated: boolean
   isInitializing: boolean
-  login: (email: string, password: string) => Promise<UserDto>
+  login: (email: string, password: string) => Promise<LoginResponse>
+  verify2fa: (mfaToken: string, totpCode: string) => Promise<UserDto>
   logout: () => Promise<void>
+  updateUserMfaStatus: (enabled: boolean) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -46,14 +48,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
-  const login = async (email: string, password: string): Promise<UserDto> => {
+  const login = async (email: string, password: string): Promise<LoginResponse> => {
     const data = await authService.login(email, password)
-    tokenStore.set(data.accessToken)
-    localStorage.setItem("refreshToken", data.refreshToken)
-    setUser(data.user)
-    return data.user
+    
+    if (!data.mfaRequired && data.accessToken && data.refreshToken && data.user) {
+      tokenStore.set(data.accessToken)
+      localStorage.setItem("refreshToken", data.refreshToken)
+      setUser(data.user)
+    }
+    
+    return data
   }
 
+  const verify2fa = async (mfaToken: string, totpCode: string): Promise<UserDto> => {
+    const data = await authService.verifyMfa(mfaToken, totpCode)
+    
+    if (data.accessToken && data.refreshToken && data.user) {
+      tokenStore.set(data.accessToken)
+      localStorage.setItem("refreshToken", data.refreshToken)
+      setUser(data.user)
+      return data.user
+    }
+    
+    throw new Error("MFA Verification failed to return session parameters.")
+  }
   const logout = async () => {
     const refreshToken = localStorage.getItem("refreshToken")
     if (refreshToken) {
@@ -64,12 +82,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const updateUserMfaStatus = (enabled: boolean) => {
+    setUser((currentUser) => {
+      if (!currentUser) return null;
+      return {
+        ...currentUser,
+        mfaEnabled: enabled
+      };
+    });
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isInitializing,
     login,
+    verify2fa,
     logout,
+    updateUserMfaStatus,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
