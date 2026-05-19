@@ -26,3 +26,18 @@ export const downloadPkcs12 = (id: number, password: string) =>
     { password },
     { responseType: "blob" }
   )
+
+export const downloadPem = (id: number) => 
+  api.post(
+    `/api/v1/certificates/${id}/download/pem`,
+    {},
+    { responseType: "blob" }
+  )
+
+
+export const downloadCer = (id: number) => 
+  api.post(
+    `/api/v1/certificates/${id}/download/cer`,
+    {},
+    { responseType: "blob" }
+  )
