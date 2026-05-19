@@ -17,7 +17,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import { downloadPkcs12 } from "@/service/certificate-service"
+import { downloadCer, downloadPem, downloadPkcs12 } from "@/service/certificate-service"
 import { triggerBlobDownload } from "@/lib/download-utils"
 import type { CertificateDto } from "@/types/certificate"
 
@@ -38,6 +38,12 @@ export function DownloadCertificateSheet({
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [errorPem, setErrorPem] = useState<string | null>(null)
+  const [loadingPem, setLoadingPem] = useState(false)
+  const [errorCer, setErrorCer] = useState<string | null>(null)
+  const [loadingCer, setLoadingCer] = useState(false)
+
+
 
   const reset = () => {
     setPassword("")
@@ -77,6 +83,33 @@ export function DownloadCertificateSheet({
       setError("Download failed. Please try again.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDownloadPem = async () => {
+    if (!cert) return
+    setErrorPem(null)
+    setLoadingPem(true)
+    try {
+      const response = await downloadPem(cert.id)
+      triggerBlobDownload(response.data as Blob, `${cert.commonName}.pem`)
+    } catch {
+      setErrorPem("Download failed. Please try again.")
+    } finally {
+      setLoadingPem(false)
+    }
+  }
+
+  const handleDownloadCer = async () => {
+    if (!cert) return
+    setErrorCer(null)
+    setLoadingCer(true)
+    try {      const response = await downloadCer(cert.id)
+      triggerBlobDownload(response.data as Blob, `${cert.commonName}.cer`)
+    } catch {
+      setErrorCer("Download failed. Please try again.")
+    } finally {
+      setLoadingCer(false)
     }
   }
 
@@ -188,17 +221,40 @@ export function DownloadCertificateSheet({
               <span className="text-sm font-semibold">Certificate Only</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Download without the private key. Supported by another team member
-              — coming soon.
+              Download without the private key.
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled className="flex-1">
-                Download .pem
+              <Button onClick={handleDownloadPem}
+                  disabled={loadingPem} variant="outline" size="sm" className="flex-1">
+                { loadingPem ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="mr-2 h-3.5 w-3.5" />
+                      Download .pem
+                    </>
+                  )}
               </Button>
-              <Button variant="outline" size="sm" disabled className="flex-1">
-                Download .cer
+              <Button variant="outline" onClick={handleDownloadCer}
+                  disabled={loadingCer} size="sm" className="flex-1">
+                { loadingCer ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="mr-2 h-3.5 w-3.5" />
+                      Download .cer
+                    </>
+                  )}
               </Button>
             </div>
+            {errorPem && <p className="text-xs text-destructive">{errorPem}</p>}
+            {errorCer && <p className="text-xs text-destructive">{errorCer}</p>}
           </div>
         </div>
       </SheetContent>

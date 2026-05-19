@@ -1,11 +1,16 @@
 package inc.visor.trustanchor.certificate.service;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +59,30 @@ public class CertificateDownloadService {
         certificateService.save(cert);
 
         return baos.toByteArray();
+    }
+
+    public byte[] downloadPem(Long certId, AnchorUserDetails user) throws Exception {
+        Certificate cert = certificateService.authorizeAndFetch(certId, user);
+        List<X509Certificate> certChain = certificateService.buildCertificateChain(cert);
+
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             JcaPEMWriter pemWriter = new JcaPEMWriter(new OutputStreamWriter(baos))) {
+
+            for (X509Certificate certificate : certChain) {
+                pemWriter.writeObject(certificate);
+            }
+
+            pemWriter.flush();
+            return baos.toByteArray();
+
+        } catch (Exception e) {
+            throw new RuntimeException("cant build chain when downloading as pem", e);
+        }
+    }
+
+    public byte[] downloadCer(Long certId, AnchorUserDetails user) throws Exception {
+        Certificate cert = certificateService.authorizeAndFetch(certId, user);
+        return cert.getCertificateContent();
     }
 
     
