@@ -103,8 +103,6 @@ public class DataSeeder implements CommandLineRunner {
             .organization(org)
             .userRole(UserRole.USER)
             .userStatus(UserStatus.ACTIVE)
-            .mfaEnabled(true)
-            .mfaSecret("NY4A5N76E6Z4Z6K6")
             .build()
         );
 
