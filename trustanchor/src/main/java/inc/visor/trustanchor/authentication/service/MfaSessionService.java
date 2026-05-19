@@ -19,7 +19,7 @@ public class MfaSessionService {
     }
 
     private final ConcurrentHashMap<String, MfaSession> sessionCache = new ConcurrentHashMap<>();
-    private static final long TTL_SECONDS = 120;
+    private static final long TTL_SECONDS = 180;
 
     public String createMfaSession(Long userId) {
         String mfaToken = UUID.randomUUID().toString();

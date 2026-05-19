@@ -44,7 +44,7 @@ public class User {
     private UserRole userRole;
 
     @Column(name = "mfa_enabled", nullable = false)
-    private boolean mfaEnabled  = true;
+    private boolean mfaEnabled  = false;
 
     @Column(name = "mfa_secret")
     private String mfaSecret;
