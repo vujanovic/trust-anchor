@@ -103,4 +103,30 @@ public class CertificateController {
             .contentType(MediaType.parseMediaType("application/x-pkcs12"))
             .body(pkcs12);
     }
+
+    @PostMapping("/{id}/download/pem")
+    public ResponseEntity<byte[]> downloadPem(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+        byte[] pem = certificateDownloadService.downloadPem(id, currentUser);
+        String filename = String.format("certificate_%d.pem", id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(pem);
+    }
+
+    @PostMapping("/{id}/download/cer")
+    public ResponseEntity<byte[]> downloadCer(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+        byte[] cer = certificateDownloadService.downloadCer(id, currentUser);
+        String filename = String.format("certificate_%d.cer", id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/x-x509-ca-cert"))
+                .body(cer);
+    }
 }
