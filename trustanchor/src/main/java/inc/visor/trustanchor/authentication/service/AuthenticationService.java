@@ -1,5 +1,7 @@
 package inc.visor.trustanchor.authentication.service;
 
+import com.warrenstrange.googleauth.GoogleAuthenticator;
+import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import inc.visor.trustanchor.authentication.dto.*;
 import inc.visor.trustanchor.exception.UnauthorizedAccessException;
 import inc.visor.trustanchor.user.entity.UserStatus;
@@ -21,6 +23,9 @@ import inc.visor.trustanchor.user.dto.UserDto;
 import inc.visor.trustanchor.user.entity.AnchorUserDetails;
 import inc.visor.trustanchor.user.entity.User;
 import inc.visor.trustanchor.user.service.UserService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class AuthenticationService {
@@ -144,5 +149,48 @@ public class AuthenticationService {
         mfaSessionService.invalidateSession(verifyMfaDto.getMfaToken());
 
         return generateFullLoginResponse(user);
+    }
+
+    public Map<String, String> initiateMfaSetup(User currentUser) {
+
+        String secret = new GoogleAuthenticator().createCredentials().getKey();
+
+        // Format: otpauth://totp/Issuer:Label?secret=SECRET&issuer=Issuer
+        String companyName = "TrustAnchor";
+        String qrCodeUrl = String.format("otpauth://totp/%s:%s?secret=%s&issuer=%s",
+                currentUser.getOrganization().getName(), currentUser.getEmail(), secret, companyName);
+
+        Map<String, String> response = new HashMap<>();
+        response.put("secretKey", secret);
+        response.put("qrCodeUrl", qrCodeUrl);
+        return response;
+    }
+
+    @Transactional
+    public void toggleMfa(User currentUser, MfaToggleDto dto) {
+        if (!currentUser.isMfaEnabled()) {
+            if (dto.getSecretKey() == null || dto.getSecretKey().isBlank()) {
+                throw new IllegalArgumentException("Secret key is required to enable MFA");
+            }
+
+            boolean isValid = gaService.isValid(dto.getSecretKey(), dto.getTotpCode());
+            if (!isValid) {
+                throw new UnauthorizedAccessException("Invalid verification code. Setup failed.");
+            }
+
+            currentUser.setMfaSecret(dto.getSecretKey());
+            currentUser.setMfaEnabled(true);
+        } else {
+
+            boolean isValid = gaService.isValid(currentUser.getMfaSecret(), dto.getTotpCode());
+            if (!isValid) {
+                throw new UnauthorizedAccessException("Invalid verification code. Cannot disable 2FA.");
+            }
+
+            currentUser.setMfaSecret(null);
+            currentUser.setMfaEnabled(false);
+        }
+
+        userService.update(currentUser);
     }
 }
