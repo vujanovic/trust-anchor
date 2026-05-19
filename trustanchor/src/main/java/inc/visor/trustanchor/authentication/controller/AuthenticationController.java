@@ -69,24 +69,4 @@ public class AuthenticationController {
         LoginResponseDto response = authenticationService.verifyMfaCode(verifyMfaDto);
         return ResponseEntity.ok(response);
     }
-
-    @GetMapping("/mfa-setup")
-    public ResponseEntity<Map<String, String>> getMfaSetup(@AuthenticationPrincipal AnchorUserDetails userDetails) {
-        Map<String, String> setupData = authenticationService.initiateMfaSetup(userDetails.getUser());
-        return ResponseEntity.ok(setupData);
-    }
-
-    @PostMapping("/toggle-2fa")
-    public ResponseEntity<Map<String, String>> toggle2fa(
-            @AuthenticationPrincipal AnchorUserDetails userDetails,
-            @Valid @RequestBody MfaToggleDto toggleDto) {
-
-        authenticationService.toggleMfa(userDetails.getUser(), toggleDto);
-
-        Map<String, String> response = new HashMap<>();
-        response.put("message", userDetails.getUser().isMfaEnabled() ? "2FA Enabled" : "2FA Disabled");
-        return ResponseEntity.ok(response);
-    }
-
-
 }
