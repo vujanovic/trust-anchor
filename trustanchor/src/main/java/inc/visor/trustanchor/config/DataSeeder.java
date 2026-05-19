@@ -103,6 +103,7 @@ public class DataSeeder implements CommandLineRunner {
             .organization(org)
             .userRole(UserRole.USER)
             .userStatus(UserStatus.ACTIVE)
+            .mfaEnabled(true)
             .build()
         );
 
@@ -114,6 +115,7 @@ public class DataSeeder implements CommandLineRunner {
                 .organization(org)
                 .userRole(UserRole.USER)
                 .userStatus(UserStatus.ACTIVE)
+                .mfaEnabled(true)
                 .build()
         );
 
