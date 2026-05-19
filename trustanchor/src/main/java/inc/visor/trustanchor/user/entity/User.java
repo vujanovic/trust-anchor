@@ -42,10 +42,4 @@ public class User {
     @Enumerated(EnumType.ORDINAL)
     @Column(name = "user_role", nullable = false)
     private UserRole userRole;
-
-    @Column(name = "mfa_enabled", nullable = false)
-    private boolean mfaEnabled  = true;
-
-    @Column(name = "mfa_secret")
-    private String mfaSecret;
 }
