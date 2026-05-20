@@ -10,7 +10,8 @@ export const registrationSchema = z.object({
   lastName: z.string().min(1, "Last name is required").max(100),
   email: z.string().email("Invalid email format").max(255),
   password: passwordSchema, // Reusability!
-  organizationId: z.coerce.number().positive("Organization is required"),
+  repeatPassword: passwordSchema,
+  organizationId: z.number().min(1, "Please select an organization"),
 })
 
 export const loginSchema = z.object({
@@ -69,3 +70,4 @@ export const caUserSchema = z.object({
 })
 
 export type CaUserFormValues = z.infer<typeof caUserSchema>;
+export type RegistrationFormValues = z.infer<typeof registrationSchema>

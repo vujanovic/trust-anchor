@@ -1,11 +1,18 @@
 package inc.visor.trustanchor.authentication.service;
 
 import com.warrenstrange.googleauth.GoogleAuthenticator;
-import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import inc.visor.trustanchor.authentication.dto.*;
+import inc.visor.trustanchor.authentication.entity.RefreshToken;
+import inc.visor.trustanchor.email.EmailService;
+import inc.visor.trustanchor.exception.NotFoundException;
 import inc.visor.trustanchor.exception.UnauthorizedAccessException;
+import inc.visor.trustanchor.organization.entity.Organization;
+import inc.visor.trustanchor.organization.service.OrganizationService;
+import inc.visor.trustanchor.user.dto.UserDto;
+import inc.visor.trustanchor.user.entity.AnchorUserDetails;
+import inc.visor.trustanchor.user.entity.User;
 import inc.visor.trustanchor.user.entity.UserStatus;
-import jakarta.validation.Valid;
+import inc.visor.trustanchor.user.service.UserService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,16 +20,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import inc.visor.trustanchor.authentication.entity.RefreshToken;
-import inc.visor.trustanchor.email.EmailService;
-import inc.visor.trustanchor.exception.NotFoundException;
-import inc.visor.trustanchor.organization.entity.Organization;
-import inc.visor.trustanchor.organization.service.OrganizationService;
-import inc.visor.trustanchor.user.dto.UserDto;
-import inc.visor.trustanchor.user.entity.AnchorUserDetails;
-import inc.visor.trustanchor.user.entity.User;
-import inc.visor.trustanchor.user.service.UserService;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,14 +1,126 @@
+import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { type SubmitHandler, useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import {
   Anchor,
   ArrowRight,
   Building2,
+  Eye,
+  EyeOff,
+  Fingerprint,
   Lock,
+  type LucideIcon,
   Mail,
   Shield,
-  User,
 } from "lucide-react"
+import { api } from "@/lib/axios.ts"
+import {
+  type RegistrationFormValues,
+  registrationSchema,
+} from "@/lib/validations.ts"
+
+interface Organization {
+  id: number
+  name: string
+  code: string
+  email: string
+  registrationDate: string
+  domain: string
+  location: string
+}
 
 export default function AppRegistration() {
+  const navigate = useNavigate()
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [globalError, setGlobalError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<RegistrationFormValues>({
+    resolver: zodResolver(registrationSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      organizationId: 0,
+      password: "",
+      repeatPassword: "",
+    },
+  })
+
+  useEffect(() => {
+    let isMounted = true
+    const controller = new AbortController()
+
+    const fetchOrganizations = async () => {
+      try {
+        const response = await api.get<Organization[]>("/api/v1/org", {
+          signal: controller.signal, // Allow canceling if component unmounts mid-request
+        })
+        if (isMounted) {
+          setOrganizations(response.data)
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "CanceledError") return
+
+        console.error("Failed to fetch security data:", error)
+        if (isMounted) {
+          setGlobalError("Failed to load organization directories.")
+        }
+      }
+    }
+
+    fetchOrganizations()
+
+    // 3. Cleanup function runs when component unmounts
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
+  }, []) // Empty array ensures this only mounts ONCE per component lifecycle
+
+  const handleRegister: SubmitHandler<RegistrationFormValues> = async (
+    data
+  ) => {
+    setGlobalError(null)
+
+    try {
+      const response = await fetch("/api/v1/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          organizationId: Number(data.organizationId),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(
+          errorData?.message ||
+            "Registration failed. Please check your details."
+        )
+      }
+
+      navigate("/login", { replace: true })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setGlobalError(err.message)
+      } else {
+        setGlobalError("An unexpected authentication error occurred.")
+      }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
       <main className="relative flex min-h-[calc(100vh-64px)] items-center justify-center px-6 py-12">
@@ -25,102 +137,147 @@ export default function AppRegistration() {
               Register to start managing your X.509 certificates.
             </p>
           </div>
+
           <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-2xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/50 dark:shadow-none">
-            <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-5" onSubmit={handleSubmit(handleRegister)}>
+              {/* Identity Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-                    First Name
-                  </label>
+                  <Label icon={Fingerprint} label="First Name" />
                   <div className="relative">
-                    <User className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
                     <input
                       type="text"
                       placeholder="Nikola"
-                      className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                      {...register("firstName")}
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                     />
                   </div>
+                  {errors.firstName && (
+                    <ErrorMsg msg={errors.firstName.message} />
+                  )}
                 </div>
+
                 <div className="space-y-2">
-                  <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-                    Last Name
-                  </label>
+                  <Label icon={Fingerprint} label="Last Name" />
                   <input
                     type="text"
                     placeholder="Tesla"
+                    {...register("lastName")}
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
+                  {errors.lastName && (
+                    <ErrorMsg msg={errors.lastName.message} />
+                  )}
                 </div>
               </div>
+
+              {/* Credentials */}
               <div className="space-y-2">
-                <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-                  Email Address
-                </label>
+                <Label icon={Mail} label="Email Address" />
                 <div className="relative">
-                  <Mail className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
                   <input
                     type="email"
                     placeholder="tesla@trustanchor.com"
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    {...register("email")}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
                 </div>
+                {errors.email && <ErrorMsg msg={errors.email.message} />}
               </div>
+
+              {/* Assignments */}
               <div className="space-y-2">
-                <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-                  Affiliated Organization
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
-                  <select className="w-full appearance-none rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950">
-                    <option value="">Select an organization...</option>
-                    <option value="siit">SIIT Security Lab</option>
-                    <option value="ftn">FTN Novi Sad</option>
-                  </select>
-                </div>
+                <Label icon={Building2} label="Organization Anchor" />
+                <select
+                  {...register("organizationId", { valueAsNumber: true })}
+                  className="flex h-11 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                >
+                  <option value="0">Select entity...</option>
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.organizationId && (
+                  <ErrorMsg msg={errors.organizationId.message} />
+                )}
               </div>
+
+              {/* Master Password */}
               <div className="space-y-2">
-                <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-                  Master Password
-                </label>
+                <Label icon={Lock} label="Master Password" />
                 <div className="relative">
-                  <Lock className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
                   <input
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Minimally 15 characters"
+                    {...register("password")}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
+                {errors.password && <ErrorMsg msg={errors.password.message} />}
               </div>
+
+              {/* Repeat Password */}
               <div className="space-y-2">
-                <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-                  Repeat Password
-                </label>
+                <Label icon={Lock} label="Repeat Password" />
                 <div className="relative">
-                  <Lock className="absolute top-3 left-3 h-4 w-4 text-slate-400" />
                   <input
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Confirm master password"
+                    {...register("repeatPassword")}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                   />
                 </div>
+                {errors.repeatPassword && (
+                  <ErrorMsg msg={errors.repeatPassword.message} />
+                )}
               </div>
-              <button className="group relative mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
-                Register Identity
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+
+              {/* Form Submission & Errors */}
+              {globalError && (
+                <p className="text-center text-sm font-medium text-red-500">
+                  {globalError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="group relative mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              >
+                {isSubmitting ? "Enrolling Identity..." : "Register Identity"}
+                {!isSubmitting && (
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                )}
               </button>
             </form>
+
             <div className="mt-8 text-center text-xs">
               <p className="text-slate-500 dark:text-slate-400">
                 Already have an identity?{" "}
-                <a
-                  href="/login"
+                <button
+                  onClick={() => navigate("/login")}
                   className="font-bold text-cyan-600 hover:underline dark:text-cyan-400"
                 >
                   Secure Login
-                </a>
+                </button>
               </p>
             </div>
           </div>
+
           <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-400 dark:text-slate-600">
             By registering, you agree to our{" "}
             <span className="underline">
@@ -139,5 +296,22 @@ export default function AppRegistration() {
         </div>
       </main>
     </div>
+  )
+}
+
+function Label({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-500 uppercase dark:text-slate-400">
+      <Icon size={12} className="text-cyan-600 dark:text-cyan-400" />
+      {label}
+    </div>
+  )
+}
+
+function ErrorMsg({ msg }: { msg?: string }) {
+  return (
+    <p className="mt-1 text-[9px] font-bold tracking-tighter text-red-500 uppercase">
+      {msg}
+    </p>
   )
 }
