@@ -38,7 +38,7 @@ public class ActivationToken {
     @Column(nullable = false)
     private String plainTextChallenge;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String encryptedChallengeBase64;
 
     public boolean isExpired() {

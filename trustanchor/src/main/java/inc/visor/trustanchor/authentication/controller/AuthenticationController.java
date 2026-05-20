@@ -73,7 +73,7 @@ public class AuthenticationController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/api/v1/auth/activation-details")
+    @GetMapping("/activation-details")
     public ResponseEntity<?> getActivationDetails(@RequestParam String token) {
         ActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow();
 
@@ -86,7 +86,7 @@ public class AuthenticationController {
         ));
     }
 
-    @PostMapping("/api/v1/auth/activate")
+    @PostMapping("/activate")
     public ResponseEntity<?> activateAccount(@RequestBody ActivationSubmitRequest request) {
         ActivationToken activationToken = activationTokenRepository.findByToken(request.token()).orElseThrow();
 

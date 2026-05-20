@@ -44,22 +44,27 @@ export async function exportPrivateKey(privateKey: CryptoKey): Promise<string> {
 export async function importPrivateKey(
   privateKeyBase64: string
 ): Promise<CryptoKey> {
-  const binaryString = atob(privateKeyBase64)
-  const bytes = new Uint8Array(binaryString.length)
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i)
-  }
+  try {
+    const binaryString = atob(privateKeyBase64)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
 
-  return await window.crypto.subtle.importKey(
-    "pkcs8",
-    bytes,
-    {
-      name: "RSA-OAEP",
-      hash: "SHA-256",
-    },
-    true,
-    ["decrypt"]
-  )
+    return await window.crypto.subtle.importKey(
+      "pkcs8",
+      bytes,
+      {
+        name: "RSA-OAEP",
+        hash: "SHA-256",
+      },
+      true,
+      ["decrypt"]
+    )
+  } catch (error) {
+    console.error("Failed to import private key:", error)
+    throw new Error("Invalid private key format")
+  }
 }
 
 /**
@@ -69,22 +74,29 @@ export async function decryptMessage(
   encryptedBase64: string,
   privateKey: CryptoKey
 ): Promise<string> {
-  const binaryString = atob(encryptedBase64)
-  const encryptedBytes = new Uint8Array(binaryString.length)
-  for (let i = 0; i < binaryString.length; i++) {
-    encryptedBytes[i] = binaryString.charCodeAt(i)
+  try {
+    const binaryString = atob(encryptedBase64)
+    const encryptedBytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      encryptedBytes[i] = binaryString.charCodeAt(i)
+    }
+
+    console.log("Encrypted bytes length:", encryptedBytes.length) // Debug
+
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+      {
+        name: "RSA-OAEP",
+      },
+      privateKey,
+      encryptedBytes
+    )
+
+    const decoder = new TextDecoder()
+    return decoder.decode(decryptedBuffer)
+  } catch (error) {
+    console.error("Decryption failed:", error)
+    throw new Error("Failed to decrypt message. Please check your private key.")
   }
-
-  const decryptedBuffer = await window.crypto.subtle.decrypt(
-    {
-      name: "RSA-OAEP",
-    },
-    privateKey,
-    encryptedBytes
-  )
-
-  const decoder = new TextDecoder()
-  return decoder.decode(decryptedBuffer)
 }
 
 /**
