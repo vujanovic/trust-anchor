@@ -53,6 +53,7 @@ public class UserService {
                 .organization(organization)
                 .userStatus(UserStatus.PENDING)
                 .userRole(UserRole.USER)
+                .publicKey(dto.getPublicKey())
                 .build();
         return userRepository.save(user);
     }

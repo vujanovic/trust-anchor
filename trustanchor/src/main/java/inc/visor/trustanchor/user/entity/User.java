@@ -48,4 +48,8 @@ public class User {
 
     @Column(name = "mfa_secret")
     private String mfaSecret;
+
+    @Column(name = "public_key", columnDefinition = "TEXT")
+    private String publicKey;
+
 }
