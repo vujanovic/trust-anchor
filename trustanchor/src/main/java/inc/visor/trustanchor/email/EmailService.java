@@ -85,4 +85,29 @@ public class EmailService {
 
         send(to, subject, body);
     }
+
+    public void sendResetPasswordEmail(String to, String name, String token) {
+        String resetLink = String.format("%s/reset-password?token=%s", frontendUrl, token);
+
+        String subject = "Trust Anchor: Password Reset Request";
+        String body = String.format(
+                "<html>" +
+                        "<body style='font-family: sans-serif; color: #0f172a; max-width: 600px; margin: 0 auto; padding: 20px;'>" +
+                        "  <h2 style='color: #0891b2;'>Reset Your Password, %s</h2>" +
+                        "  <p>We received a request to reset the password for your Trust Anchor profile.</p>" +
+                        "  <p>This single-use link is time-sensitive and will expire shortly. If you did not make this request, you can safely ignore this email and your password will remain unchanged.</p>" +
+                        "  <div style='margin: 25px 0;'>" +
+                        "    <a href='%s' style='background: #0f172a; color: #fff; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;'> " +
+                        "      RESET PASSWORD" +
+                        "    </a>" +
+                        "  </div>" +
+                        "  <p style='font-size: 12px; color: #64748b;'>Alternatively, copy and paste this secure URL into your browser:<br/>" +
+                        "  <span style='color: #0891b2;'>%s</span></p>" +
+                        "</body>" +
+                        "</html>",
+                name, resetLink, resetLink
+        );
+
+        send(to, subject, body);
+    }
 }

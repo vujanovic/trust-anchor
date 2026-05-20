@@ -7,6 +7,7 @@ import {
   Anchor,
   ArrowRight,
   Building2,
+  CheckCircle2,
   Download,
   Eye,
   EyeOff,
@@ -47,6 +48,7 @@ export default function AppRegistration() {
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false)
   const [keysGenerated, setKeysGenerated] = useState(false)
   const [privateKeyBase64, setPrivateKeyBase64] = useState<string>("")
+  const [isSuccess, setIsSuccess] = useState(false) // FIX: Success tracking state
 
   const {
     register,
@@ -160,6 +162,8 @@ export default function AppRegistration() {
             "Registration failed. Please check your details."
         )
       }
+
+      setIsSuccess(true)
     } catch (err: unknown) {
       if (err instanceof Error) {
         setGlobalError(err.message)
@@ -179,186 +183,220 @@ export default function AppRegistration() {
               <Shield className="h-3 w-3" /> Identity Enrollment
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight dark:text-white">
-              Create Account
+              {isSuccess ? "Enrollment Completed" : "Create Account"}
             </h1>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Register to start managing your X.509 certificates.
+              {isSuccess
+                ? "Your cryptographic trust profile is established."
+                : "Register to start managing your X.509 certificates."}
             </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-2xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/50 dark:shadow-none">
-            <form className="space-y-5" onSubmit={handleSubmit(handleRegister)}>
-              {/* Identity Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label icon={Fingerprint} label="First Name" />
-                  <div className="relative">
+            {!isSuccess ? (
+              <form
+                className="space-y-5"
+                onSubmit={handleSubmit(handleRegister)}
+              >
+                {/* Identity Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label icon={Fingerprint} label="First Name" />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Nikola"
+                        {...register("firstName")}
+                        className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                      />
+                    </div>
+                    {errors.firstName && (
+                      <ErrorMsg msg={errors.firstName.message} />
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label icon={Fingerprint} label="Last Name" />
                     <input
                       type="text"
-                      placeholder="Nikola"
-                      {...register("firstName")}
+                      placeholder="Tesla"
+                      {...register("lastName")}
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    />
+                    {errors.lastName && (
+                      <ErrorMsg msg={errors.lastName.message} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Credentials */}
+                <div className="space-y-2">
+                  <Label icon={Mail} label="Email Address" />
+                  <div className="relative">
+                    <input
+                      type="email"
+                      placeholder="tesla@trustanchor.com"
+                      {...register("email")}
                       className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                     />
                   </div>
-                  {errors.firstName && (
-                    <ErrorMsg msg={errors.firstName.message} />
+                  {errors.email && <ErrorMsg msg={errors.email.message} />}
+                </div>
+
+                {/* Organization */}
+                <div className="space-y-2">
+                  <Label icon={Building2} label="Organization Anchor" />
+                  <select
+                    {...register("organizationId", { valueAsNumber: true })}
+                    className="flex h-11 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                  >
+                    <option value="0">Select entity...</option>
+                    {organizations.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.organizationId && (
+                    <ErrorMsg msg={errors.organizationId.message} />
+                  )}
+                </div>
+
+                {/* Cryptographic Keys */}
+                <div className="space-y-2">
+                  <Label icon={Key} label="Cryptographic Identity" />
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                    <p className="mb-3 text-xs text-slate-600 dark:text-slate-400">
+                      Generate RSA-2048 key pair for secure identity
+                      verification. Your private key never leaves your device.
+                    </p>
+
+                    {!keysGenerated ? (
+                      <button
+                        type="button"
+                        onClick={handleGenerateKeys}
+                        disabled={isGeneratingKeys}
+                        className="flex w-full items-center justify-center gap-2 rounded-md border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 py-2.5 text-sm font-bold text-cyan-600 transition-all hover:border-cyan-500/50 hover:bg-cyan-500/10 disabled:opacity-50 dark:text-cyan-400"
+                      >
+                        <Key className="h-4 w-4" />
+                        {isGeneratingKeys
+                          ? "Generating Keys..."
+                          : "Generate Key Pair"}
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 rounded-md bg-green-500/10 px-3 py-2 text-xs font-bold text-green-600 dark:text-green-400">
+                          <Shield className="h-3 w-3" />
+                          Keys generated successfully
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleDownloadPrivateKey}
+                          className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download Private Key
+                        </button>
+                        <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                          ⚠️ SAVE YOUR PRIVATE KEY - Required for account
+                          activation
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {errors.publicKey && (
+                    <ErrorMsg msg={errors.publicKey.message} />
+                  )}
+                </div>
+
+                {/* Passwords */}
+                <div className="space-y-2">
+                  <Label icon={Lock} label="Master Password" />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Minimally 15 characters"
+                      {...register("password")}
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <ErrorMsg msg={errors.password.message} />
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label icon={Fingerprint} label="Last Name" />
-                  <input
-                    type="text"
-                    placeholder="Tesla"
-                    {...register("lastName")}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
-                  />
-                  {errors.lastName && (
-                    <ErrorMsg msg={errors.lastName.message} />
+                  <Label icon={Lock} label="Repeat Password" />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Confirm master password"
+                      {...register("repeatPassword")}
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                    />
+                  </div>
+                  {errors.repeatPassword && (
+                    <ErrorMsg msg={errors.repeatPassword.message} />
                   )}
                 </div>
-              </div>
 
-              {/* Credentials */}
-              <div className="space-y-2">
-                <Label icon={Mail} label="Email Address" />
-                <div className="relative">
-                  <input
-                    type="email"
-                    placeholder="tesla@trustanchor.com"
-                    {...register("email")}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
-                  />
-                </div>
-                {errors.email && <ErrorMsg msg={errors.email.message} />}
-              </div>
-
-              {/* Organization */}
-              <div className="space-y-2">
-                <Label icon={Building2} label="Organization Anchor" />
-                <select
-                  {...register("organizationId", { valueAsNumber: true })}
-                  className="flex h-11 w-full appearance-none rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
-                >
-                  <option value="0">Select entity...</option>
-                  {organizations.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.organizationId && (
-                  <ErrorMsg msg={errors.organizationId.message} />
-                )}
-              </div>
-
-              {/* Cryptographic Keys */}
-              <div className="space-y-2">
-                <Label icon={Key} label="Cryptographic Identity" />
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
-                  <p className="mb-3 text-xs text-slate-600 dark:text-slate-400">
-                    Generate RSA-2048 key pair for secure identity verification.
-                    Your private key never leaves your device.
+                {/* Errors */}
+                {globalError && (
+                  <p className="text-center text-sm font-medium text-red-500">
+                    {globalError}
                   </p>
+                )}
 
-                  {!keysGenerated ? (
-                    <button
-                      type="button"
-                      onClick={handleGenerateKeys}
-                      disabled={isGeneratingKeys}
-                      className="flex w-full items-center justify-center gap-2 rounded-md border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 py-2.5 text-sm font-bold text-cyan-600 transition-all hover:border-cyan-500/50 hover:bg-cyan-500/10 disabled:opacity-50 dark:text-cyan-400"
-                    >
-                      <Key className="h-4 w-4" />
-                      {isGeneratingKeys
-                        ? "Generating Keys..."
-                        : "Generate Key Pair"}
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 rounded-md bg-green-500/10 px-3 py-2 text-xs font-bold text-green-600 dark:text-green-400">
-                        <Shield className="h-3 w-3" />
-                        Keys generated successfully
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleDownloadPrivateKey}
-                        className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-2 text-sm font-bold text-white transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-                      >
-                        <Download className="h-4 w-4" />
-                        Download Private Key
-                      </button>
-                      <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
-                        ⚠️ SAVE YOUR PRIVATE KEY - Required for account
-                        activation
-                      </p>
-                    </div>
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !keysGenerated || isSuccess}
+                  className="group relative mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                >
+                  {isSubmitting ? "Enrolling Identity..." : "Register Identity"}
+                  {!isSubmitting && (
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   )}
+                </button>
+              </form>
+            ) : (
+              <div className="animate-in space-y-6 py-4 text-center duration-200 zoom-in-95 fade-in">
+                <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-6 w-6" />
                 </div>
-                {errors.publicKey && (
-                  <ErrorMsg msg={errors.publicKey.message} />
-                )}
-              </div>
 
-              {/* Passwords */}
-              <div className="space-y-2">
-                <Label icon={Lock} label="Master Password" />
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Minimally 15 characters"
-                    {...register("password")}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold dark:text-white">
+                    Identity Registered!
+                  </h2>
+                  <p className="mx-auto max-w-xs text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                    Your profile has been locked to your public key. Ensure you
+                    have safely stored your downloaded private key file—it will
+                    be required to authenticate.
+                  </p>
                 </div>
-                {errors.password && <ErrorMsg msg={errors.password.message} />}
-              </div>
 
-              <div className="space-y-2">
-                <Label icon={Lock} label="Repeat Password" />
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Confirm master password"
-                    {...register("repeatPassword")}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition-all focus:border-cyan-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
-                  />
-                </div>
-                {errors.repeatPassword && (
-                  <ErrorMsg msg={errors.repeatPassword.message} />
-                )}
-              </div>
-
-              {/* Errors */}
-              {globalError && (
-                <p className="text-center text-sm font-medium text-red-500">
-                  {globalError}
-                </p>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={isSubmitting || !keysGenerated}
-                className="group relative mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-              >
-                {isSubmitting ? "Enrolling Identity..." : "Register Identity"}
-                {!isSubmitting && (
+                <button
+                  onClick={() => navigate("/login")}
+                  className="group flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                >
+                  Proceed to Secure Login
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                )}
-              </button>
-            </form>
+                </button>
+              </div>
+            )}
 
             <div className="mt-8 text-center text-xs">
               <p className="text-slate-500 dark:text-slate-400">

@@ -44,7 +44,7 @@ export default function AppVerification() {
     setError(null)
 
     try {
-      await api.post("/api/v1/auth/verifyUser", {
+      await api.post("/api/v1/auth/verify-user", {
         token: token,
         password: password,
       })

@@ -4,7 +4,7 @@ import com.warrenstrange.googleauth.GoogleAuthenticator;
 import inc.visor.trustanchor.authentication.dto.*;
 import inc.visor.trustanchor.authentication.entity.ActivationToken;
 import inc.visor.trustanchor.authentication.entity.RefreshToken;
-import inc.visor.trustanchor.authentication.repository.ActivationTokenRepository;
+import inc.visor.trustanchor.authentication.entity.ResetPasswordToken;
 import inc.visor.trustanchor.authentication.utils.CryptoChallengeUtil;
 import inc.visor.trustanchor.email.EmailService;
 import inc.visor.trustanchor.exception.NotFoundException;
@@ -24,10 +24,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class AuthenticationService {
@@ -38,7 +36,8 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
-    private final ActivationTokenRepository activationTokenRepository;
+    private final ActivationTokenService activationTokenService;
+    private final ResetPasswordTokenService resetPasswordTokenService;
     private final UserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final MfaSessionService mfaSessionService;
@@ -46,7 +45,7 @@ public class AuthenticationService {
 
     public AuthenticationService(UserService userService, EmailService emailService,
                                  OrganizationService organizationService, AuthenticationManager authenticationManager,
-                                 JwtService jwtService, RefreshTokenService refreshTokenService, ActivationTokenRepository activationTokenRepository,
+                                 JwtService jwtService, RefreshTokenService refreshTokenService, ActivationTokenService activationTokenService, ResetPasswordTokenService resetPasswordTokenService,
                                  UserDetailsService userDetailsService, PasswordEncoder passwordEncoder, MfaSessionService mfaSessionService, GAService gaService) {
         this.userService = userService;
         this.emailService = emailService;
@@ -54,37 +53,29 @@ public class AuthenticationService {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
-        this.activationTokenRepository = activationTokenRepository;
+        this.activationTokenService = activationTokenService;
+        this.resetPasswordTokenService = resetPasswordTokenService;
         this.userDetailsService = userDetailsService;
         this.passwordEncoder = passwordEncoder;
         this.mfaSessionService = mfaSessionService;
         this.gaService = gaService;
     }
 
+    @Transactional
     public User register(RegistrationDto dto) {
         Organization organization = organizationService.findById(dto.getOrganizationId()).orElseThrow(NotFoundException::new);
         User user = userService.createUser(dto, organization);
         String plainTextChallenge = CryptoChallengeUtil.generateRandomChallenge();
         String encryptedChallenge = "";
-
         try {
             encryptedChallenge = CryptoChallengeUtil.encryptChallenge(
                     plainTextChallenge,
-                    dto.getPublicKey()
+                    user.getPublicKey()
             );
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate secure cryptographic challenge", e);
         }
-
-        ActivationToken activationToken = new ActivationToken();
-        activationToken.setToken(UUID.randomUUID().toString());
-        activationToken.setUser(user);
-        activationToken.setPlainTextChallenge(plainTextChallenge);       // Kept secret on server
-        activationToken.setEncryptedChallengeBase64(encryptedChallenge); // Sent to frontend later
-        activationToken.setExpiresAt(LocalDateTime.now().plusHours(24));
-        activationToken.setUsed(false);
-        activationTokenRepository.save(activationToken);
-
+        ActivationToken activationToken = activationTokenService.create(user, plainTextChallenge, encryptedChallenge);
         emailService.sendActivationEmail(
                 user.getEmail(),
                 user.getFirstName(),
@@ -92,6 +83,26 @@ public class AuthenticationService {
         );
 
         return user;
+    }
+
+    @Transactional
+    public void forgotPassword(User user) {
+        String plainTextChallenge = CryptoChallengeUtil.generateRandomChallenge();
+        String encryptedChallenge = "";
+        try {
+            encryptedChallenge = CryptoChallengeUtil.encryptChallenge(
+                    plainTextChallenge,
+                    user.getPublicKey()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate secure cryptographic challenge", e);
+        }
+        ResetPasswordToken activationToken = resetPasswordTokenService.create(user, plainTextChallenge, encryptedChallenge);
+        emailService.sendResetPasswordEmail(
+                user.getEmail(),
+                user.getFirstName(),
+                activationToken.getToken()
+        );
     }
 
     @Transactional
@@ -142,6 +153,14 @@ public class AuthenticationService {
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setUserStatus(UserStatus.ACTIVE);
         userService.update(user);
+    }
+    @Transactional
+    public void activate(ActivationToken activationToken) {
+        User user = activationToken.getUser();
+        user.setUserStatus(UserStatus.ACTIVE);
+        userService.update(user);
+        activationToken.setUsed(true);
+        activationTokenService.save(activationToken);
     }
 
     public void logout(RefreshRequestDto dto) {
@@ -222,5 +241,13 @@ public class AuthenticationService {
         }
 
         userService.update(currentUser);
+    }
+
+    public void updatePassword(ResetPasswordToken resetPasswordToken, String password) {
+        User user = resetPasswordToken.getUser();
+        user.setPassword(passwordEncoder.encode(password));
+        userService.update(user);
+        resetPasswordToken.setUsed(true);
+        resetPasswordTokenService.save(resetPasswordToken);
     }
 }

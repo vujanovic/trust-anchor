@@ -72,7 +72,6 @@ export default function AppLogin() {
       <main className="relative flex min-h-[calc(100vh-64px)] items-center justify-center px-6 py-12">
         <div className="absolute inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[16px_16px] dark:bg-slate-950 dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)]"></div>
         <div className="relative z-10 w-full max-w-100">
-          
           <div className="mb-8 text-center">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-bold tracking-widest text-blue-600 uppercase dark:text-blue-400">
               <Lock className="h-3 w-3" /> Secure Access
@@ -81,14 +80,13 @@ export default function AppLogin() {
               {mfaRequired ? "Two-Factor Auth" : "Identity Login"}
             </h1>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              {mfaRequired 
+              {mfaRequired
                 ? "Enter your 6-digit verification code from Google Authenticator."
                 : "Enter your credentials to access the PKI vault."}
             </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-2xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900/50 dark:shadow-none">
-            
             {!mfaRequired ? (
               /* --- Step 1: Standard Credentials Form --- */
               <form className="space-y-5" onSubmit={handleLogin}>
@@ -108,17 +106,17 @@ export default function AppLogin() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
                       Master Password
                     </label>
                     <a
-                      href="#"
+                      href="/forgot-password"
                       className="text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400"
                     >
-                      Forgot Key?
+                      Forgot Password?
                     </a>
                   </div>
                   <div className="relative">
@@ -137,13 +135,19 @@ export default function AppLogin() {
                       className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
 
                 {error && (
-                  <p className="text-center text-sm font-medium text-red-500">{error}</p>
+                  <p className="text-center text-sm font-medium text-red-500">
+                    {error}
+                  </p>
                 )}
 
                 <button
@@ -173,14 +177,18 @@ export default function AppLogin() {
                       autoFocus
                       placeholder="000 000"
                       value={totpCode}
-                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
-                      className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-center text-lg font-mono tracking-[0.5em] transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+                      onChange={(e) =>
+                        setTotpCode(e.target.value.replace(/\D/g, ""))
+                      }
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pr-4 pl-10 text-center font-mono text-lg tracking-[0.5em] transition-all focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <p className="text-center text-sm font-medium text-red-500">{error}</p>
+                  <p className="text-center text-sm font-medium text-red-500">
+                    {error}
+                  </p>
                 )}
 
                 <div className="space-y-2 pt-2">
@@ -194,7 +202,7 @@ export default function AppLogin() {
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     )}
                   </button>
-                  
+
                   <button
                     type="button"
                     onClick={() => {
@@ -202,7 +210,7 @@ export default function AppLogin() {
                       setError(null)
                       setTotpCode("")
                     }}
-                    className="w-full text-center text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-2"
+                    className="w-full py-2 text-center text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     Back to credentials
                   </button>
@@ -218,7 +226,7 @@ export default function AppLogin() {
               </div>
             </div>
           </div>
-          
+
           {!mfaRequired && (
             <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
               Don't have an identity yet?{" "}
