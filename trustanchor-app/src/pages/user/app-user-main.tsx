@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { useNavigate } from "react-router-dom"
 import { getMyCertificates } from "@/service/certificate-service"
 import type { CertificateDto } from "@/types/certificate"
+import { MfaSettingsModal } from "./dialog/mfa-settings-modal"
 
 const MOCK_CAS = [
   {
@@ -58,6 +59,8 @@ export default function AppUserMain() {
 
   const { logout, user } = useAuth()
   const navigate = useNavigate()
+
+  const [mfaOpen, setMfaOpen] = useState(false)
 
   useEffect(() => {
     const fetchCertificates = async () => {
@@ -141,7 +144,7 @@ export default function AppUserMain() {
           {/* User Info & Actions */}
           <div className="flex items-center gap-4">
             {/* User Info */}
-            <div className="hidden items-center gap-3 rounded-lg bg-muted/50 px-3 py-2 sm:flex">
+           <div className="hidden items-center gap-3 rounded-lg bg-muted/50 px-3 py-2 sm:flex">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                 <User className="h-4 w-4 text-primary" />
               </div>
@@ -154,6 +157,11 @@ export default function AppUserMain() {
                 </p>
               </div>
             </div>
+
+            <Button variant="ghost" onClick={() => setMfaOpen(true)} className="gap-2">
+              <Shield className="h-4 w-4" />
+              <span className="hidden sm:inline">Toggle 2FA</span>
+            </Button>
 
             {/* Dark Mode Toggle */}
             <Button
@@ -313,6 +321,11 @@ export default function AppUserMain() {
           onConfirm={confirmRevoke}
         />
       )}
+
+      <MfaSettingsModal 
+        open={mfaOpen} 
+        onClose={() => setMfaOpen(false)} 
+      />
 
       <footer className="mt-16 border-t border-border px-6 py-8 text-center">
         <p className="text-xs text-muted-foreground">

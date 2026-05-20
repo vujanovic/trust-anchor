@@ -1,22 +1,18 @@
 package inc.visor.trustanchor.authentication.controller;
 
+import inc.visor.trustanchor.authentication.dto.*;
+import inc.visor.trustanchor.user.entity.AnchorUserDetails;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
-import inc.visor.trustanchor.authentication.dto.ForgotPasswordDto;
-import inc.visor.trustanchor.authentication.dto.LoginDto;
-import inc.visor.trustanchor.authentication.dto.LoginResponseDto;
-import inc.visor.trustanchor.authentication.dto.RefreshRequestDto;
-import inc.visor.trustanchor.authentication.dto.RegistrationDto;
-import inc.visor.trustanchor.authentication.dto.ResetPasswordDto;
-import inc.visor.trustanchor.authentication.dto.VerificationDto;
 import inc.visor.trustanchor.authentication.service.AuthenticationService;
 import inc.visor.trustanchor.user.dto.UserDto;
 import inc.visor.trustanchor.user.entity.User;
 import jakarta.validation.Valid;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -66,5 +62,11 @@ public class AuthenticationController {
     @PostMapping("/resetPassword")
     public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/verify-2fa")
+    public ResponseEntity<LoginResponseDto> verify2fa(@Valid @RequestBody VerifyMfaDto verifyMfaDto) {
+        LoginResponseDto response = authenticationService.verifyMfaCode(verifyMfaDto);
+        return ResponseEntity.ok(response);
     }
 }

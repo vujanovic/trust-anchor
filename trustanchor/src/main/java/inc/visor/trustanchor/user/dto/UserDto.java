@@ -37,6 +37,8 @@ public class UserDto {
     private UserStatus status;
     private UserRole role;
 
+    private boolean mfaEnabled = false;
+
     public UserDto(User user) {
         this.id = user.getId();
         this.email = user.getEmail();
@@ -45,5 +47,6 @@ public class UserDto {
         this.organizationId = user.getOrganization().getId();
         this.status = user.getUserStatus();
         this.role = user.getUserRole();
+        this.mfaEnabled = user.isMfaEnabled();
     }
 }

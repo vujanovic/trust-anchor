@@ -11,3 +11,6 @@ export const logout = (refreshToken: string) =>
 
 export const refresh = (refreshToken: string) =>
   service.post<LoginResponse>("/refresh", { refreshToken })
+
+export const verifyMfa = (mfaToken: string, totpCode: string) =>
+  service.post<LoginResponse>("/verify-2fa", { mfaToken, totpCode })
