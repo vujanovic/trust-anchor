@@ -55,6 +55,6 @@ public class CertificateDto {
         this.isValid = certificate.isValid();
         this.isCACertificate = certificate.isCACertificate();
         this.privateKeyDownloaded = certificate.getPrivateKeyDownloaded();
-        this.hasPrivateKey = certificate.getPrivateKeyEncrypted() != null && !certificate.getPrivateKeyDownloaded();
+        this.hasPrivateKey = certificate.getPrivateKeyEncrypted() != null;
     }
 }

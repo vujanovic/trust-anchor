@@ -17,7 +17,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import { downloadCer, downloadPem, downloadPkcs12 } from "@/service/certificate-service"
+import {
+  downloadCer,
+  downloadPem,
+  downloadPkcs12,
+} from "@/service/certificate-service"
 import { triggerBlobDownload } from "@/lib/download-utils"
 import type { CertificateDto } from "@/types/certificate"
 
@@ -42,8 +46,6 @@ export function DownloadCertificateSheet({
   const [loadingPem, setLoadingPem] = useState(false)
   const [errorCer, setErrorCer] = useState<string | null>(null)
   const [loadingCer, setLoadingCer] = useState(false)
-
-
 
   const reset = () => {
     setPassword("")
@@ -104,7 +106,8 @@ export function DownloadCertificateSheet({
     if (!cert) return
     setErrorCer(null)
     setLoadingCer(true)
-    try {      const response = await downloadCer(cert.id)
+    try {
+      const response = await downloadCer(cert.id)
       triggerBlobDownload(response.data as Blob, `${cert.commonName}.cer`)
     } catch {
       setErrorCer("Download failed. Please try again.")
@@ -143,7 +146,6 @@ export function DownloadCertificateSheet({
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>
-                    You can only download the private key <strong>once</strong>.
                     Store the .p12 file and its password in a safe place.
                   </span>
                 </div>
@@ -204,9 +206,8 @@ export function DownloadCertificateSheet({
               <div className="flex items-start gap-2 rounded-md border border-muted bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
                 <ShieldOff className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  {cert.privateKeyDownloaded
-                    ? "The private key for this certificate has already been downloaded and is no longer available."
-                    : "No private key is stored for this certificate (CSR-based issuance)."}
+                  No private key is stored for this certificate (CSR-based
+                  issuance).
                 </span>
               </div>
             )}
@@ -224,33 +225,43 @@ export function DownloadCertificateSheet({
               Download without the private key.
             </p>
             <div className="flex gap-2">
-              <Button onClick={handleDownloadPem}
-                  disabled={loadingPem} variant="outline" size="sm" className="flex-1">
-                { loadingPem ? (
-                    <>
-                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <KeyRound className="mr-2 h-3.5 w-3.5" />
-                      Download .pem
-                    </>
-                  )}
+              <Button
+                onClick={handleDownloadPem}
+                disabled={loadingPem}
+                variant="outline"
+                size="sm"
+                className="flex-1"
+              >
+                {loadingPem ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="mr-2 h-3.5 w-3.5" />
+                    Download .pem
+                  </>
+                )}
               </Button>
-              <Button variant="outline" onClick={handleDownloadCer}
-                  disabled={loadingCer} size="sm" className="flex-1">
-                { loadingCer ? (
-                    <>
-                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <KeyRound className="mr-2 h-3.5 w-3.5" />
-                      Download .cer
-                    </>
-                  )}
+              <Button
+                variant="outline"
+                onClick={handleDownloadCer}
+                disabled={loadingCer}
+                size="sm"
+                className="flex-1"
+              >
+                {loadingCer ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="mr-2 h-3.5 w-3.5" />
+                    Download .cer
+                  </>
+                )}
               </Button>
             </div>
             {errorPem && <p className="text-xs text-destructive">{errorPem}</p>}

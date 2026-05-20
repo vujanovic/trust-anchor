@@ -340,16 +340,7 @@ export default function AppAdminCertificates() {
         cert={downloading}
         open={!!downloading}
         onClose={() => setDownloading(null)}
-        onDownloaded={(certId) => {
-          setCertificates((prev) =>
-            prev.map((c) =>
-              c.id === certId
-                ? { ...c, privateKeyDownloaded: true, hasPrivateKey: false }
-                : c
-            )
-          )
-          setDownloading(null)
-        }}
+        onDownloaded={() => setDownloading(null)}
       />
     </div>
   )

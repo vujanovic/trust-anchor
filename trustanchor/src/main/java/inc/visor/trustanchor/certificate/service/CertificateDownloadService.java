@@ -1,12 +1,9 @@
 package inc.visor.trustanchor.certificate.service;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
@@ -35,10 +32,6 @@ public class CertificateDownloadService {
             throw new IllegalStateException("Certificate does not have an associated private key");
         }
 
-        if (cert.getPrivateKeyDownloaded()) {
-            throw new IllegalStateException("Private key has already been downloaded for this certificate");
-        }
-
         PrivateKey privateKey = certificateService.decryptCertificatePrivateKey(cert);
 
         List<X509Certificate> certChain = certificateService.buildCertificateChain(cert);
@@ -48,15 +41,10 @@ public class CertificateDownloadService {
         keyStore.setKeyEntry(cert.getCommonName(),
                 privateKey,
                 password.toCharArray(),
-                certChain.toArray(new X509Certificate[0]));
-        
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        
-        keyStore.store(baos, password.toCharArray());
+                certChain.toArray(X509Certificate[]::new));
 
-        // Mark as downloaded atomically within same transaction
-        cert.setPrivateKeyDownloaded(true);
-        certificateService.save(cert);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        keyStore.store(baos, password.toCharArray());
 
         return baos.toByteArray();
     }

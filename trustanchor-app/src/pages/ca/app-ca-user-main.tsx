@@ -739,15 +739,7 @@ export default function AppCAUserMain() {
         cert={downloading}
         open={!!downloading}
         onClose={() => setDownloading(null)}
-        onDownloaded={(certId) =>
-          setCerts((prev) =>
-            prev.map((c) =>
-              c.id === certId
-                ? { ...c, privateKeyDownloaded: true, hasPrivateKey: false }
-                : c
-            )
-          )
-        }
+        onDownloaded={() => setDownloading(null)}
       />
 
       <footer className="mt-16 border-t border-border px-6 py-8 text-center">
