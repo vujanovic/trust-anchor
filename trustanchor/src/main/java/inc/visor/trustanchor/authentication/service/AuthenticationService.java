@@ -2,7 +2,10 @@ package inc.visor.trustanchor.authentication.service;
 
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import inc.visor.trustanchor.authentication.dto.*;
+import inc.visor.trustanchor.authentication.entity.ActivationToken;
 import inc.visor.trustanchor.authentication.entity.RefreshToken;
+import inc.visor.trustanchor.authentication.repository.ActivationTokenRepository;
+import inc.visor.trustanchor.authentication.utils.CryptoChallengeUtil;
 import inc.visor.trustanchor.email.EmailService;
 import inc.visor.trustanchor.exception.NotFoundException;
 import inc.visor.trustanchor.exception.UnauthorizedAccessException;
@@ -21,8 +24,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class AuthenticationService {
@@ -33,6 +38,7 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final ActivationTokenRepository activationTokenRepository;
     private final UserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final MfaSessionService mfaSessionService;
@@ -40,7 +46,7 @@ public class AuthenticationService {
 
     public AuthenticationService(UserService userService, EmailService emailService,
                                  OrganizationService organizationService, AuthenticationManager authenticationManager,
-                                 JwtService jwtService, RefreshTokenService refreshTokenService,
+                                 JwtService jwtService, RefreshTokenService refreshTokenService, ActivationTokenRepository activationTokenRepository,
                                  UserDetailsService userDetailsService, PasswordEncoder passwordEncoder, MfaSessionService mfaSessionService, GAService gaService) {
         this.userService = userService;
         this.emailService = emailService;
@@ -48,6 +54,7 @@ public class AuthenticationService {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.activationTokenRepository = activationTokenRepository;
         this.userDetailsService = userDetailsService;
         this.passwordEncoder = passwordEncoder;
         this.mfaSessionService = mfaSessionService;
@@ -57,7 +64,33 @@ public class AuthenticationService {
     public User register(RegistrationDto dto) {
         Organization organization = organizationService.findById(dto.getOrganizationId()).orElseThrow(NotFoundException::new);
         User user = userService.createUser(dto, organization);
-        //TODO implement email sending
+        String plainTextChallenge = CryptoChallengeUtil.generateRandomChallenge();
+        String encryptedChallenge = "";
+
+        try {
+            encryptedChallenge = CryptoChallengeUtil.encryptChallenge(
+                    plainTextChallenge,
+                    dto.getPublicKey()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate secure cryptographic challenge", e);
+        }
+
+        ActivationToken activationToken = new ActivationToken();
+        activationToken.setToken(UUID.randomUUID().toString());
+        activationToken.setUser(user);
+        activationToken.setPlainTextChallenge(plainTextChallenge);       // Kept secret on server
+        activationToken.setEncryptedChallengeBase64(encryptedChallenge); // Sent to frontend later
+        activationToken.setExpiresAt(LocalDateTime.now().plusHours(24));
+        activationToken.setUsed(false);
+        activationTokenRepository.save(activationToken);
+
+        emailService.sendActivationEmail(
+                user.getEmail(),
+                user.getFirstName(),
+                activationToken.getToken()
+        );
+
         return user;
     }
 

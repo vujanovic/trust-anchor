@@ -27,4 +27,7 @@ public class RegistrationDto {
     @NotNull(message = "Organization id is required")
     @Positive(message = "Organization id must be a positive number")
     private Long organizationId;
+
+    @NotBlank(message = "Public key is required")
+    private String publicKey;
 }

@@ -12,6 +12,7 @@ export const registrationSchema = z.object({
   password: passwordSchema, // Reusability!
   repeatPassword: passwordSchema,
   organizationId: z.number().min(1, "Please select an organization"),
+  publicKey: z.string().min(1, "Public key generation failed"),
 })
 
 export const loginSchema = z.object({
