@@ -14,6 +14,7 @@ import AppCAUserMain from "@/pages/ca/app-ca-user-main"
 import AppRegistration from "@/pages/unauthenticated/app-registration.tsx"
 import AppLogin from "@/pages/unauthenticated/app-login.tsx"
 import AppVerification from "@/pages/unauthenticated/app-verification.tsx"
+import ActivateAccount from "@/pages/unauthenticated/app-activation-page.tsx"
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
       <Route path="register" element={<AppRegistration />} />
       <Route path="login" element={<AppLogin />} />
       <Route path="verify-identity" element={<AppVerification />} />
+      <Route path="activate-account" element={<ActivateAccount />} />
 
       <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
         <Route path="admin" element={<AppAdminMain />}>

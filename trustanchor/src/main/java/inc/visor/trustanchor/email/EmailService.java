@@ -60,4 +60,29 @@ public class EmailService {
 
         send(to, subject, body);
     }
+
+    public void sendActivationEmail(String to, String name, String token) {
+        String activationLink = String.format("%s/activate-account?token=%s", frontendUrl, token);
+
+        String subject = "Trust Anchor: Identity Verification Required";
+        String body = String.format(
+                "<html>" +
+                        "<body style='font-family: sans-serif; color: #0f172a; max-width: 600px; margin: 0 auto; padding: 20px;'>" +
+                        "  <h2 style='color: #0891b2;'>Verify Your Identity, %s</h2>" +
+                        "  <p>Your Trust Anchor profile has been registered</p>" +
+                        "  <p>This single-use link is time-sensitive and will expire shortly.</p>" +
+                        "  <div style='margin: 25px 0;'>" +
+                        "    <a href='%s' style='background: #0f172a; color: #fff; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;'> " +
+                        "      START ACTIVATION" +
+                        "    </a>" +
+                        "  </div>" +
+                        "  <p style='font-size: 12px; color: #64748b;'>Alternatively, copy and paste this secure URL into your browser:<br/>" +
+                        "  <span style='color: #0891b2;'>%s</span></p>" +
+                        "</body>" +
+                        "</html>",
+                name, activationLink, activationLink
+        );
+
+        send(to, subject, body);
+    }
 }
