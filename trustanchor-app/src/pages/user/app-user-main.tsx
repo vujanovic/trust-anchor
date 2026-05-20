@@ -144,7 +144,7 @@ export default function AppUserMain() {
           {/* User Info & Actions */}
           <div className="flex items-center gap-4">
             {/* User Info */}
-           <div className="hidden items-center gap-3 rounded-lg bg-muted/50 px-3 py-2 sm:flex">
+            <div className="hidden items-center gap-3 rounded-lg bg-muted/50 px-3 py-2 sm:flex">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                 <User className="h-4 w-4 text-primary" />
               </div>
@@ -158,7 +158,11 @@ export default function AppUserMain() {
               </div>
             </div>
 
-            <Button variant="ghost" onClick={() => setMfaOpen(true)} className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setMfaOpen(true)}
+              className="gap-2"
+            >
               <Shield className="h-4 w-4" />
               <span className="hidden sm:inline">Toggle 2FA</span>
             </Button>
@@ -302,15 +306,7 @@ export default function AppUserMain() {
         cert={downloading}
         open={!!downloading}
         onClose={() => setDownloading(null)}
-        onDownloaded={(certId) =>
-          setCerts((prev) =>
-            prev.map((c) =>
-              c.id === certId
-                ? { ...c, privateKeyDownloaded: true, hasPrivateKey: false }
-                : c
-            )
-          )
-        }
+        onDownloaded={() => setDownloading(null)}
       />
 
       {/* Revocation Modal */}
@@ -322,10 +318,7 @@ export default function AppUserMain() {
         />
       )}
 
-      <MfaSettingsModal 
-        open={mfaOpen} 
-        onClose={() => setMfaOpen(false)} 
-      />
+      <MfaSettingsModal open={mfaOpen} onClose={() => setMfaOpen(false)} />
 
       <footer className="mt-16 border-t border-border px-6 py-8 text-center">
         <p className="text-xs text-muted-foreground">
