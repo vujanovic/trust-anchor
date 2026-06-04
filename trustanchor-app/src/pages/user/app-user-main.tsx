@@ -297,7 +297,7 @@ export default function AppUserMain() {
 
         {activeTab === "request" && (
           <Card className="p-6 fade-in">
-            <RequestTab cas={MOCK_CAS} />
+            <RequestTab cas={MOCK_CAS} email={userEmail} />
           </Card>
         )}
       </div>
