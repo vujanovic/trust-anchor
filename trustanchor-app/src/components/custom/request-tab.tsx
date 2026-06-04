@@ -24,34 +24,61 @@ interface CA {
 interface RequestTabProps {
   cas: CA[]
   email: string
+  organizationName: string
 }
 
-export function RequestTab({ email }: RequestTabProps) {
-  // 1. Keep this as a string internally for Radix UI compatibility
+export function RequestTab({ email, organizationName }: RequestTabProps) {
   const [selectedCA, setSelectedCA] = useState<string>("")
   const [csrMethod, setCsrMethod] = useState<"generate" | "upload">("generate")
+
+  // Added validFrom and validTo directly into the main form data state
   const [formData, setFormData] = useState({
     commonName: "",
     email: email,
-    organization: "",
+    organization: organizationName,
     organizationalUnit: "",
-    locality: "",
-    state: "",
     country: "",
-    keyAlgorithm: "RSA-2048",
     csrFile: null as File | null,
+    validFrom: "",
+    validTo: "",
   })
+
   const [issuers, setIssuers] = useState<CertificateDto[]>([])
   const [issuersLoaded, setIssuersLoaded] = useState(false)
+
+  // Find the full DTO object of the currently selected CA to read its valid date bounds
+  const currentIssuer = issuers.find((iss) => String(iss.id) === selectedCA)
+
+  // Helper utility to convert ISO strings (e.g. 2026-06-04T12:00:00Z) to HTML date input format (YYYY-MM-DD)
+  const formatDateForInput = (isoString?: string) => {
+    if (!isoString) return ""
+    return isoString.split("T")[0]
+  }
+
+  const minAllowedDate = formatDateForInput(currentIssuer?.notBefore)
+  const maxAllowedDate = formatDateForInput(currentIssuer?.notAfter)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // 2. Convert the string ID to a number when processing the request
+    // Enforce range checks on submission as an extra layer of protection
+    if (minAllowedDate && formData.validFrom < minAllowedDate) {
+      alert(
+        `Error: The start date cannot be earlier than the CA's issue date (${minAllowedDate}).`
+      )
+      return
+    }
+    if (maxAllowedDate && formData.validTo > maxAllowedDate) {
+      alert(
+        `Error: The expiration date cannot exceed the CA's expiration date (${maxAllowedDate}).`
+      )
+      return
+    }
+
     const selectedCaIdAsNumber = selectedCA ? Number(selectedCA) : null
 
     console.log("Certificate request:", {
-      selectedCA: selectedCaIdAsNumber, // Now a number type
+      selectedCA: selectedCaIdAsNumber,
       csrMethod,
       formData,
     })
@@ -69,9 +96,15 @@ export function RequestTab({ email }: RequestTabProps) {
         setIssuers(data)
         setIssuersLoaded(true)
         console.log(data)
-        // 3. Automatically select the first fetched issuer if one exists
         if (data && data.length > 0) {
           setSelectedCA(String(data[0].id))
+
+          // Pre-populate input defaults using the first chosen CA boundaries
+          setFormData((prev) => ({
+            ...prev,
+            validFrom: data[0].notBefore.split("T")[0],
+            validTo: data[0].notAfter.split("T")[0],
+          }))
         }
       })
       .catch(() => {
@@ -98,15 +131,34 @@ export function RequestTab({ email }: RequestTabProps) {
 
       {/* CA Selection */}
       <div className="space-y-2">
-        {/* Link the label to the select trigger id */}
         <Label htmlFor="ca-selection">Select Certificate Authority</Label>
+        <Select
+          value={selectedCA}
+          onValueChange={(value) => {
+            setSelectedCA(value)
 
-        <Select value={selectedCA} onValueChange={setSelectedCA} >
-          {/* Add matching id here */}
+            const newIssuer = issuers.find((iss) => String(iss.id) === value)
+            if (newIssuer) {
+              const issuerMin = newIssuer.notBefore.split("T")[0]
+              const issuerMax = newIssuer.notAfter.split("T")[0]
+
+              setFormData((prev) => ({
+                ...prev,
+                validFrom:
+                  prev.validFrom < issuerMin || prev.validFrom > issuerMax
+                    ? issuerMin
+                    : prev.validFrom,
+                validTo:
+                  prev.validTo > issuerMax || prev.validTo < issuerMin
+                    ? issuerMax
+                    : prev.validTo,
+              }))
+            }
+          }}
+          >
           <SelectTrigger id="ca-selection">
             <SelectValue placeholder="Select an issuer..." />
           </SelectTrigger>
-
           <SelectContent>
             {issuers.map((ca) => (
               <SelectItem key={ca.id} value={String(ca.id)}>
@@ -139,6 +191,51 @@ export function RequestTab({ email }: RequestTabProps) {
             <Upload className="mr-2 h-4 w-4" />
             Upload CSR
           </Button>
+        </div>
+      </div>
+
+      {/* Shared Validity Range Configuration Area */}
+      <div className="my-2 space-y-4 rounded-lg border-y border-border bg-muted/20 p-4 py-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-foreground">
+            Certificate Lifespan Range
+          </h4>
+          {currentIssuer && (
+            <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+              Max Bounds: {minAllowedDate} to {maxAllowedDate}
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="validFrom">Not Before *</Label>
+            <Input
+              id="validFrom"
+              type="date"
+              required
+              min={minAllowedDate}
+              max={maxAllowedDate}
+              value={formData.validFrom}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, validFrom: e.target.value }))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="validTo">Not After *</Label>
+            <Input
+              id="validTo"
+              type="date"
+              required
+              min={formData.validFrom || minAllowedDate} // Ensure expiration cannot happen before issue start point
+              max={maxAllowedDate}
+              value={formData.validTo}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, validTo: e.target.value }))
+              }
+            />
+          </div>
         </div>
       </div>
 
@@ -192,6 +289,7 @@ export function RequestTab({ email }: RequestTabProps) {
                   }))
                 }
                 placeholder="Example Corp"
+                disabled={true}
               />
             </div>
             <div className="space-y-2">
@@ -215,30 +313,6 @@ export function RequestTab({ email }: RequestTabProps) {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="locality">Locality (L)</Label>
-              <Input
-                id="locality"
-                type="text"
-                value={formData.locality}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, locality: e.target.value }))
-                }
-                placeholder="Belgrade"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="state">State/Province (ST)</Label>
-              <Input
-                id="state"
-                type="text"
-                value={formData.state}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, state: e.target.value }))
-                }
-                placeholder="Central Serbia"
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="country">Country (C)</Label>
               <Input
                 id="country"
@@ -251,26 +325,6 @@ export function RequestTab({ email }: RequestTabProps) {
                 maxLength={2}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="keyAlgorithm">Key Algorithm</Label>
-            <Select
-              value={formData.keyAlgorithm}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, keyAlgorithm: value }))
-              }
-            >
-              <SelectTrigger id="keyAlgorithm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="RSA-2048">RSA-2048</SelectItem>
-                <SelectItem value="RSA-4096">RSA-4096</SelectItem>
-                <SelectItem value="EC-P256">EC-P256</SelectItem>
-                <SelectItem value="EC-P384">EC-P384</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/30">
