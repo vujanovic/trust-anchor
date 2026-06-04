@@ -33,6 +33,8 @@ export function RequestTab({ email, organizationName }: RequestTabProps) {
 
   // Added validFrom and validTo directly into the main form data state
   const [formData, setFormData] = useState({
+    issuerId: null as number | null,
+    csrMethod: csrMethod,
     commonName: "",
     email: email,
     organization: organizationName,
@@ -75,13 +77,10 @@ export function RequestTab({ email, organizationName }: RequestTabProps) {
       return
     }
 
-    const selectedCaIdAsNumber = selectedCA ? Number(selectedCA) : null
-
     console.log("Certificate request:", {
-      selectedCA: selectedCaIdAsNumber,
-      csrMethod,
-      formData,
-    })
+    csrMethod,
+    formData,
+})
     alert("Certificate request submitted! (This is a demo)")
   }
 
@@ -102,6 +101,7 @@ export function RequestTab({ email, organizationName }: RequestTabProps) {
           // Pre-populate input defaults using the first chosen CA boundaries
           setFormData((prev) => ({
             ...prev,
+            issuerId: data[0].id,
             validFrom: data[0].notBefore.split("T")[0],
             validTo: data[0].notAfter.split("T")[0],
           }))
@@ -135,25 +135,26 @@ export function RequestTab({ email, organizationName }: RequestTabProps) {
         <Select
           value={selectedCA}
           onValueChange={(value) => {
-            setSelectedCA(value)
+              setSelectedCA(value)
 
-            const newIssuer = issuers.find((iss) => String(iss.id) === value)
-            if (newIssuer) {
-              const issuerMin = newIssuer.notBefore.split("T")[0]
-              const issuerMax = newIssuer.notAfter.split("T")[0]
+              const newIssuer = issuers.find((iss) => String(iss.id) === value)
+              if (newIssuer) {
+                const issuerMin = newIssuer.notBefore.split("T")[0]
+                const issuerMax = newIssuer.notAfter.split("T")[0]
 
-              setFormData((prev) => ({
-                ...prev,
-                validFrom:
-                  prev.validFrom < issuerMin || prev.validFrom > issuerMax
-                    ? issuerMin
-                    : prev.validFrom,
-                validTo:
-                  prev.validTo > issuerMax || prev.validTo < issuerMin
-                    ? issuerMax
-                    : prev.validTo,
-              }))
-            }
+                setFormData((prev) => ({
+                  ...prev,
+                  issuerId: newIssuer.id,
+                  validFrom:
+                    prev.validFrom < issuerMin || prev.validFrom > issuerMax
+                      ? issuerMin
+                      : prev.validFrom,
+                  validTo:
+                    prev.validTo > issuerMax || prev.validTo < issuerMin
+                      ? issuerMax
+                      : prev.validTo,
+                }))
+              }
           }}
           >
           <SelectTrigger id="ca-selection">
