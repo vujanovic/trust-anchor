@@ -11,10 +11,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import javax.crypto.SecretKey;
 
 import inc.visor.trustanchor.certificate.dto.Pair;
+import inc.visor.trustanchor.certificate.entity.Request;
+import jakarta.persistence.EntityNotFoundException;
 import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
@@ -60,6 +63,8 @@ public class CertificateGenerationService {
     private final OrganizationKeyService orgKeyService;
     private final UserService userService;
     private final CertificateService certificateService;
+    private final CsrService csrService;
+    private final CertificateSigningService certificateSigningService;
 
     @PostConstruct
     public void registerBCProvider() {
@@ -502,5 +507,96 @@ public class CertificateGenerationService {
 
     private void appendBool(StringBuilder sb, String key, Boolean value) {
         if (value != null) sb.append('"').append(key).append("\":").append(value).append(',');
+    }
+
+    @Transactional
+    public void processCsrApproval(long requestId) throws Exception {
+
+        Request request = csrService.getCsr(requestId)
+                .orElseThrow(() -> new EntityNotFoundException("CSR Request missing"));
+
+        Certificate caCertEntity = certificateService.findById(request.getIssuerId());
+
+        if (!caCertEntity.isCACertificate()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Selected issuer must be a CA certificate (ROOT or INTERMEDIATE)");
+        }
+
+        X509Certificate javaCaCert = parseX509(caCertEntity.getCertificateContent());
+        PrivateKey caPrivateKey = certificateService.decryptCertificatePrivateKey(caCertEntity);
+
+        X509Certificate newIssuedCert = certificateSigningService.signUploadedCsr(
+                request.getCsrFile(),
+                javaCaCert,
+                caPrivateKey,
+                request.getNotBefore(),
+                request.getNotAfter()
+        );
+
+        X500Name x500Name = X500Name.getInstance(
+                org.bouncycastle.asn1.ASN1Primitive.fromByteArray(newIssuedCert.getSubjectX500Principal().getEncoded())
+        );
+
+        String commonName = getRdnValue(x500Name, BCStyle.CN);
+        String organizationName = getRdnValue(x500Name, BCStyle.O);
+        String organizationalUnit = getRdnValue(x500Name, BCStyle.OU);
+        String country = getRdnValue(x500Name, BCStyle.C);
+        String email = getRdnValue(x500Name, BCStyle.E);
+
+        boolean[] keyUsageArray = newIssuedCert.getKeyUsage();
+        List<String> ekuStrings = newIssuedCert.getExtendedKeyUsage();
+
+        ExtensionsDto rawExt = new ExtensionsDto(
+                newIssuedCert.getBasicConstraints() != -1,
+                keyUsageArray != null && keyUsageArray[5],
+                keyUsageArray != null && keyUsageArray[6],
+                keyUsageArray != null && keyUsageArray[0],
+                keyUsageArray != null && keyUsageArray[2],
+                keyUsageArray != null && keyUsageArray[3],
+                keyUsageArray != null && keyUsageArray[1],
+                ekuStrings
+        );
+
+        ExtensionsDto normalizedExt = normalizeExtensions(rawExt, CertificateType.END_ENTITY);
+
+        Optional<User> user = userService.findById(request.getUserId());
+
+        if (!user.isPresent()) {
+            throw new EntityNotFoundException("User not found");
+        }
+
+        Certificate newbornEntity = new Certificate();
+        newbornEntity.setSerialNumber(newIssuedCert.getSerialNumber().toString(16));
+        newbornEntity.setIssuerCertificate(caCertEntity);
+        newbornEntity.setOrganizationId(user.get().getOrganization().getId());
+        newbornEntity.setUserId(request.getUserId());
+
+        newbornEntity.setCommonName(commonName);
+        newbornEntity.setOrganizationName(organizationName);
+        newbornEntity.setOrganizationalUnit(organizationalUnit);
+        newbornEntity.setCountry(country);
+        newbornEntity.setEmail(email);
+
+        newbornEntity.setCertificateType(CertificateType.END_ENTITY);
+        newbornEntity.setNotBefore(request.getNotBefore().atStartOfDay());
+        newbornEntity.setNotAfter(request.getNotAfter().atStartOfDay());
+        newbornEntity.setCertificateContent(newIssuedCert.getEncoded());
+        newbornEntity.setPublicKey(newIssuedCert.getPublicKey().getEncoded());
+        newbornEntity.setStatus(CertificateStatus.ACTIVE);
+        newbornEntity.setExtensions(extensionsToJson(normalizedExt));
+
+        newbornEntity.setPrivateKeyDownloaded(true);
+
+        certificateService.saveCertificate(newbornEntity);
+        csrService.approveById(requestId);
+    }
+
+
+    private String getRdnValue(X500Name name, org.bouncycastle.asn1.ASN1ObjectIdentifier attributeId) {
+        org.bouncycastle.asn1.x500.RDN[] rdns = name.getRDNs(attributeId);
+        if (rdns == null || rdns.length == 0) {
+            return null;
+        }
+        return rdns[0].getFirst().getValue().toString();
     }
 }

@@ -1,13 +1,16 @@
 package inc.visor.trustanchor.certificate.controller;
 
 import java.security.PrivateKey;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import inc.visor.trustanchor.certificate.dto.*;
+import inc.visor.trustanchor.certificate.entity.Request;
 import inc.visor.trustanchor.certificate.enums.CertificateType;
+import inc.visor.trustanchor.certificate.service.CsrService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -19,13 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import inc.visor.trustanchor.certificate.entity.Certificate;
 import inc.visor.trustanchor.certificate.service.CertificateDownloadService;
@@ -45,6 +42,7 @@ public class CertificateController {
     private final CertificateService certificateService;
     private final CertificateGenerationService certificateGenerationService;
     private final CertificateDownloadService certificateDownloadService;
+    private final CsrService csrService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN')")
@@ -157,4 +155,54 @@ public class CertificateController {
                 .body(pkcs12);
 
     }
+
+    @PostMapping(value = "/request/upload", consumes = "multipart/form-data")
+    public ResponseEntity<String> uploadCertificate(@Valid @ModelAttribute CsrUploadDto dto, @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+
+        if (currentUser == null) {
+            throw new UnauthorizedAccessException("Forbidden Access");
+        }
+
+        String filename = dto.getCsrFile().getOriginalFilename();
+        LocalDate startDate = dto.getValidFrom();
+
+        Request request = new Request(dto);
+        request.setUserId(currentUser.getUser().getId());
+        csrService.saveCsr(request);
+
+        return ResponseEntity.ok("Successfully read file: " + filename + " starting on " + startDate);
+    }
+
+    @GetMapping("/requests")
+    @PreAuthorize("hasAnyRole('CA_USER')")
+    public ResponseEntity<List<CsrDashboardResponse>> getRequests(@AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+        if (currentUser == null) {
+            throw new UnauthorizedAccessException("Forbidden Access");
+        }
+        long caUserId = currentUser.getUser().getId();
+
+        List<CsrDashboardResponse> dashboardData = csrService.getDashboardRequestsForCa(caUserId);
+        return ResponseEntity.ok(dashboardData);
+    }
+
+    @PostMapping("/requests/{id}/approve")
+    @PreAuthorize("hasAnyRole('CA_USER')")
+    public ResponseEntity<HttpStatus> approveRequest(@PathVariable Long id, @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+        if (currentUser == null) {
+            throw new UnauthorizedAccessException("Forbidden Access");
+        }
+        certificateGenerationService.processCsrApproval(id);
+        return ResponseEntity.ok(HttpStatus.OK);
+    }
+
+    @PostMapping("/requests/{id}/reject")
+    @PreAuthorize("hasAnyRole('CA_USER')")
+    public ResponseEntity<HttpStatus> rejectRequest(@PathVariable Long id, @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+        if (currentUser == null) {
+            throw new UnauthorizedAccessException("Forbidden Access");
+        }
+        csrService.rejectById(id);
+        return ResponseEntity.ok(HttpStatus.OK);
+    }
+
 }
