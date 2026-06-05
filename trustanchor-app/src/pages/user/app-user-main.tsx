@@ -92,7 +92,7 @@ export default function AppUserMain() {
 
   const userName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()
   const userEmail = user?.email ?? ""
-
+  const userOrganizationName = user?.organizationName ?? ""
   const activeCerts = certs.filter((c) => c.status === "ACTIVE").length
   const expiredCerts = certs.filter((c) => c.status === "EXPIRED").length
   const revokedCerts = certs.filter((c) => c.status === "REVOKED").length
@@ -297,7 +297,7 @@ export default function AppUserMain() {
 
         {activeTab === "request" && (
           <Card className="p-6 fade-in">
-            <RequestTab cas={MOCK_CAS} />
+            <RequestTab cas={MOCK_CAS} email={userEmail} organizationName={userOrganizationName} />
           </Card>
         )}
       </div>

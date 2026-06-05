@@ -22,4 +22,17 @@ public class IssueCertificateDto {
     @NotNull LocalDateTime notBefore;
     @NotNull LocalDateTime notAfter;
     ExtensionsDto extensions;
+
+    public IssueCertificateDto(CertificateRequestDto dto) {
+        this.setCertificateType(CertificateType.END_ENTITY);
+        this.setIssuerCertificateId(dto.getIssuerId());
+        this.setCommonName(dto.getCommonName());
+        this.setEmail(dto.getEmail());
+        this.setCountry(dto.getCountry());
+        this.setNotBefore(dto.getValidFrom().atStartOfDay());
+        this.setNotAfter(dto.getValidTo().atStartOfDay());
+        this.setOrganizationalUnit(dto.getOrganizationalUnit());
+        this.setOrganizationName(dto.getOrganization());
+        this.setExtensions(dto.getExtensions());
+    }
 }

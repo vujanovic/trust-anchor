@@ -39,8 +39,11 @@ public class UserDto {
 
     private boolean mfaEnabled = false;
 
+    private String organizationName = null;
+
     public UserDto(User user) {
         this.id = user.getId();
+        this.organizationName = user.getOrganization().getName();
         this.email = user.getEmail();
         this.firstName = user.getFirstName();
         this.lastName = user.getLastName();

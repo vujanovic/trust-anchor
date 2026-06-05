@@ -4,6 +4,7 @@ export interface UserDto {
   lastName: string
   email: string
   organizationId: number
+  organizationName: string
   role: "ADMIN" | "CA_USER" | "USER"
   status: "ACTIVE" | "INACTIVE" | "PENDING" | "BANNED"
   mfaEnabled: boolean

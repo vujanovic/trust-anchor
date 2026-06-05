@@ -33,8 +33,11 @@ import {
   getOrganizationCertificates,
   getAvailableIssuers,
   issueCertificate,
+  getRequests,
+  approveRequest,
+  rejectRequest,
 } from "@/service/certificate-service"
-import type { CertificateDto } from "@/types/certificate"
+import type { CertificateDto, CsrDashboardResponse } from "@/types/certificate"
 import { DownloadCertificateSheet } from "@/pages/user/dialog/download-certificate-sheet"
 
 const pad = (n: number) => String(n).padStart(2, "0")
@@ -118,7 +121,9 @@ function fmtDate(iso: string) {
 }
 
 export default function AppCAUserMain() {
-  const [activeTab, setActiveTab] = useState<"certs" | "issue">("certs")
+  const [activeTab, setActiveTab] = useState<"certs" | "issue" | "requests">(
+    "certs"
+  )
   const [certs, setCerts] = useState<CertificateDto[]>([])
   const [issuers, setIssuers] = useState<CertificateDto[]>([])
   const [loadingCerts, setLoadingCerts] = useState(true) // true on mount — no effect needed
@@ -128,6 +133,9 @@ export default function AppCAUserMain() {
   const [submitting, setSubmitting] = useState(false)
   const [downloading, setDownloading] = useState<CertificateDto | null>(null)
   const [darkMode, setDarkMode] = useState(true)
+
+  const [requests, setRequests] = useState<CsrDashboardResponse[]>([])
+  const [loadingRequests, setLoadingRequests] = useState(true)
 
   const { logout, user } = useAuth()
   const { toast } = useToast()
@@ -250,6 +258,57 @@ export default function AppCAUserMain() {
     }
   }
 
+  useEffect(() => {
+    if (activeTab !== "requests" || !loadingRequests) return
+    let ignore = false
+
+    getRequests()
+      .then((data) => {
+        if (ignore) return
+        setRequests(
+          data.filter((r: CsrDashboardResponse) => r.csrStatus === "PENDING")
+        )
+        setLoadingRequests(false)
+      })
+      .catch(() => {
+        if (!ignore)
+          toast({ message: "Failed to load CSR requests.", variant: "error" })
+      })
+      .finally(() => {
+        if (!ignore) setLoadingRequests(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [activeTab, loadingRequests, toast])
+
+  const handleApproveCsr = async (id: number) => {
+    try {
+      await approveRequest(id)
+      toast({
+        message: "CSR approved and certificate issued.",
+        variant: "success",
+      })
+      setRequests((prev) => prev.filter((r) => r.id !== id))
+      loadCerts()
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (err: unknown) {
+      toast({ message: "Failed to approve CSR request.", variant: "error" })
+    }
+  }
+
+  const handleRejectCsr = async (id: number) => {
+    try {
+      await rejectRequest(id)
+      toast({ message: "CSR request was rejected.", variant: "success" })
+      setRequests((prev) => prev.filter((r) => r.id !== id))
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (err: unknown) {
+      toast({ message: "Failed to reject CSR request.", variant: "error" })
+    }
+  }
+
   const input =
     "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
   const lbl = "text-xs font-bold tracking-wider text-muted-foreground uppercase"
@@ -361,6 +420,11 @@ export default function AppCAUserMain() {
               icon: Shield,
             },
             { id: "issue" as const, label: "Issue Certificate", icon: Plus },
+            {
+              id: "requests" as const,
+              label: "Pending CSR Requests",
+              icon: Layers,
+            },
           ].map((tab) => (
             <Button
               key={tab.id}
@@ -731,6 +795,82 @@ export default function AppCAUserMain() {
                 {submitting ? "Issuing..." : "Issue Certificate"}
               </Button>
             </form>
+          </Card>
+        )}
+        {/* Tab 3: Pending CSR Requests */}
+        {activeTab === "requests" && (
+          <Card className="overflow-hidden fade-in">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <p className="text-sm font-bold text-card-foreground">
+                Incoming CSR Signature Requests
+              </p>
+
+            </div>
+            {loadingRequests ? (
+              <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                Loading certificate signing requests...
+              </div>
+            ) : requests.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                No pending certificate signing requests found.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Common Name</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Valid From</TableHead>
+                    <TableHead>Valid Until</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests.map((req) => (
+                    <TableRow key={req.id}>
+                      <TableCell className="font-medium">
+                        {req.commonName}
+                      </TableCell>
+                      <TableCell>{req.organization || "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {req.email || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {fmtDate(req.notBefore)}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {fmtDate(req.notAfter)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+                            onClick={() =>
+                              handleApproveCsr(req.id)
+                            }
+                          >
+                            <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                            Approve
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-red-500/30 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400"
+                            onClick={() => handleRejectCsr(req.id)}
+                          >
+                            <XCircle className="mr-1 h-3.5 w-3.5" />
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </Card>
         )}
       </div>

@@ -55,3 +55,35 @@ export interface IssueCertificateRequest {
   notAfter: string
   extensions: ExtensionsRequest
 }
+
+export interface GenerateCertificateRequest {
+  issuerId: number | null;
+  csrMethod: "generate" | "upload";
+  commonName: string;
+  email: string;
+  organization: string;
+  organizationalUnit: string;
+  country: string;
+  password: string;
+  csrFile: File | null;
+  validFrom: string;
+  validTo: string;
+  extensions: ExtensionsRequest
+}
+
+export interface CsrUploadRequest {
+  validFrom: string;
+  validTo: string;
+  csrFile: File
+}
+
+export interface CsrDashboardResponse {
+  id: number;
+  issuerId: number;
+  notBefore: string;
+  notAfter: string;
+  csrStatus: "PENDING" | "APPROVED" | "REJECTED" | string;
+  commonName: string;
+  email: string;
+  organization: string;
+}
