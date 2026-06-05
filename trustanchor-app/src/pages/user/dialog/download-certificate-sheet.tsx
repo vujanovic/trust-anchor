@@ -141,7 +141,7 @@ export function DownloadCertificateSheet({
               </span>
             </div>
 
-            {cert.hasPrivateKey ? (
+            {cert.hasPrivateKey && !cert.privateKeyDownloaded ? (
               <>
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -185,7 +185,7 @@ export function DownloadCertificateSheet({
 
                 <Button
                   onClick={handleDownloadPkcs12}
-                  disabled={loading}
+                  disabled={loading || cert.privateKeyDownloaded}
                   size="sm"
                   className="w-full"
                 >

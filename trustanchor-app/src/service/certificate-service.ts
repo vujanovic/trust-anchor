@@ -3,6 +3,7 @@ import { createService } from "@/lib/base-service"
 import type {
   CertificateDto,
   IssueCertificateRequest,
+  GenerateCertificateRequest,
 } from "@/types/certificate"
 
 const service = createService("/certificates")
@@ -27,17 +28,22 @@ export const downloadPkcs12 = (id: number, password: string) =>
     { responseType: "blob" }
   )
 
-export const downloadPem = (id: number) => 
+export const downloadPem = (id: number) =>
   api.post(
     `/api/v1/certificates/${id}/download/pem`,
     {},
     { responseType: "blob" }
   )
 
-
-export const downloadCer = (id: number) => 
+export const downloadCer = (id: number) =>
   api.post(
     `/api/v1/certificates/${id}/download/cer`,
     {},
     { responseType: "blob" }
   )
+
+export const autogenerateCertificate = (dto: GenerateCertificateRequest) => {
+  return api.post("/api/v1/certificates/request/generate", dto, {
+    responseType: "blob",
+  })
+}
