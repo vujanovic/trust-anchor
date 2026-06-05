@@ -70,3 +70,20 @@ export interface GenerateCertificateRequest {
   validTo: string;
   extensions: ExtensionsRequest
 }
+
+export interface CsrUploadRequest {
+  validFrom: string;
+  validTo: string;
+  csrFile: File
+}
+
+export interface CsrDashboardResponse {
+  id: number;
+  issuerId: number;
+  notBefore: string;
+  notAfter: string;
+  csrStatus: "PENDING" | "APPROVED" | "REJECTED" | string;
+  commonName: string;
+  email: string;
+  organization: string;
+}

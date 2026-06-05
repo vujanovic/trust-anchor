@@ -4,6 +4,7 @@ import type {
   CertificateDto,
   IssueCertificateRequest,
   GenerateCertificateRequest,
+  CsrDashboardResponse,
 } from "@/types/certificate"
 
 const service = createService("/certificates")
@@ -47,3 +48,21 @@ export const autogenerateCertificate = (dto: GenerateCertificateRequest) => {
     responseType: "blob",
   })
 }
+
+export const uploadCsr = (dto: FormData) => {
+  return api.post("/api/v1/certificates/request/upload", dto)
+}
+
+export const getRequests = () => {
+  return service.get<CsrDashboardResponse[]>("/requests")
+}
+
+export const approveRequest = (id: number) =>
+  api.post(
+    `/api/v1/certificates/requests/${id}/approve`
+  )
+
+export const rejectRequest = (id: number) =>
+  api.post(
+    `/api/v1/certificates/requests/${id}/reject`
+  )
