@@ -3,6 +3,7 @@ package inc.visor.trustanchor.certificate.service;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -32,7 +33,28 @@ public class CertificateDownloadService {
             throw new IllegalStateException("Certificate does not have an associated private key");
         }
 
+        if (cert.getPrivateKeyDownloaded()) {
+            throw new IllegalStateException("CSR was used for generating this certificate. Private key was already downloaded.");
+        }
+
         PrivateKey privateKey = certificateService.decryptCertificatePrivateKey(cert);
+
+        List<X509Certificate> certChain = certificateService.buildCertificateChain(cert);
+
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(null, null);
+        keyStore.setKeyEntry(cert.getCommonName(),
+                privateKey,
+                password.toCharArray(),
+                certChain.toArray(X509Certificate[]::new));
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        keyStore.store(baos, password.toCharArray());
+
+        return baos.toByteArray();
+    }
+
+    public byte[] bundlePrivateKeyWithCertIntoPkcs12S(Certificate cert, PrivateKey privateKey, String password) throws Exception {
 
         List<X509Certificate> certChain = certificateService.buildCertificateChain(cert);
 

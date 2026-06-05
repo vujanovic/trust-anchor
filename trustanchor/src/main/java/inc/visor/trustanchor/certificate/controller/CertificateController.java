@@ -1,10 +1,18 @@
 package inc.visor.trustanchor.certificate.controller;
 
+import java.security.PrivateKey;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import inc.visor.trustanchor.certificate.dto.CertificateRequestDto;
+import inc.visor.trustanchor.certificate.dto.*;
+import inc.visor.trustanchor.certificate.enums.CertificateType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,9 +27,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import inc.visor.trustanchor.certificate.dto.CertificateDto;
-import inc.visor.trustanchor.certificate.dto.DownloadPkcs12Request;
-import inc.visor.trustanchor.certificate.dto.IssueCertificateDto;
 import inc.visor.trustanchor.certificate.entity.Certificate;
 import inc.visor.trustanchor.certificate.service.CertificateDownloadService;
 import inc.visor.trustanchor.certificate.service.CertificateGenerationService;
@@ -130,5 +135,26 @@ public class CertificateController {
                         "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("application/x-x509-ca-cert"))
                 .body(cer);
+    }
+
+    @PostMapping("/request/generate")
+    public ResponseEntity<byte[]> autogenerateCertificate(@Valid @RequestBody CertificateRequestDto dto,
+                                                          @AuthenticationPrincipal AnchorUserDetails currentUser) throws Exception {
+
+        if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
+        if (!currentUser.getUser().getEmail().equals(dto.getEmail())) {
+            throw new UnauthorizedAccessException("You can only request certificate for yourself");
+        }
+        IssueCertificateDto issueDto = new IssueCertificateDto(dto);
+
+        Pair<Certificate, PrivateKey> pair = certificateGenerationService.issueWithoutPrivateKey(issueDto, currentUser);
+
+        byte[] pkcs12 = certificateDownloadService.bundlePrivateKeyWithCertIntoPkcs12S(pair.first, pair.second, dto.getPassword());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"certificate.p12\"")
+                .contentType(MediaType.parseMediaType("application/x-pkcs12"))
+                .body(pkcs12);
+
     }
 }

@@ -240,14 +240,6 @@ public class CertificateGenerationService {
 
             validateIssuerChain(issuerCert);
 
-            if (currentUser.getUser().getUserRole() == UserRole.CA_USER) {
-                long userOrgId = currentUser.getUser().getOrganization().getId();
-                if (userOrgId != issuerCert.getOrganizationId()) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                            "CA users may only use issuers from their own organization");
-                }
-            }
-
             if (dto.getCertificateType() == CertificateType.ROOT) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "CA users may only issue INTERMEDIATE or END_ENTITY certificates");
@@ -336,9 +328,6 @@ public class CertificateGenerationService {
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                     .build(signingKey);
             byte[] certDer = certBuilder.build(signer).getEncoded();
-            SecretKey orgKey = orgKeyService.getOrCreateOrgKey(orgId);
-            EncryptedData enc = encryptionService.encrypt(keyPair.getPrivate().getEncoded(), orgKey);
-            byte[] packedPrivKey = enc.pack();
 
             Certificate cert = new Certificate();
             cert.setSerialNumber(serial.toString(16));
@@ -357,8 +346,9 @@ public class CertificateGenerationService {
             cert.setPublicKey(keyPair.getPublic().getEncoded());
             cert.setStatus(CertificateStatus.ACTIVE);
             cert.setExtensions(extensionsToJson(ext));
+            cert.setPrivateKeyDownloaded(true);
 
-            return new Pair<Certificate, PrivateKey>(certificateService.saveCertificate(cert), keyPair.getPrivate());
+            return new Pair<>(certificateService.saveCertificate(cert), keyPair.getPrivate());
 
         } catch (ResponseStatusException e) {
             throw e;
