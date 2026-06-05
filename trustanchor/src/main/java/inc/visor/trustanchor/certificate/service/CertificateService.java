@@ -76,7 +76,7 @@ public class CertificateService {
         List<Certificate> candidates = switch (userRole) {
             case ADMIN   -> certificateRepository.findByCertificateTypeInAndStatus(caTypes, CertificateStatus.ACTIVE);
             case CA_USER -> certificateRepository.findByOrganizationIdAndCertificateTypeInAndStatus(organizationId, caTypes, CertificateStatus.ACTIVE);
-            default      -> List.of();
+            default      -> certificateRepository.findByOrganizationIdAndCertificateTypeInAndStatus(organizationId, caTypes, CertificateStatus.ACTIVE);
         };
         return candidates.stream()
                 .filter(c -> !java.time.LocalDateTime.now().isAfter(c.getNotAfter()))

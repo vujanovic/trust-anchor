@@ -2,11 +2,7 @@ package inc.visor.trustanchor.certificate.service;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.Security;
+import java.security.*;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
@@ -18,6 +14,7 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 
+import inc.visor.trustanchor.certificate.dto.Pair;
 import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
@@ -213,6 +210,155 @@ public class CertificateGenerationService {
             cert.setExtensions(extensionsToJson(ext));
 
             return certificateService.saveCertificate(cert);
+
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Certificate generation failed: " + e.getMessage(), e);
+        }
+    }
+
+    @Transactional
+    public Pair<Certificate, PrivateKey> issueWithoutPrivateKey(IssueCertificateDto dto, AnchorUserDetails currentUser) throws Exception {
+
+        boolean isRoot = dto.getCertificateType() == CertificateType.ROOT;
+        Certificate issuerCert = null;
+        X509Certificate issuerX509 = null;
+        java.security.PrivateKey issuerPrivKey = null;
+
+        if (!isRoot) {
+            if (dto.getIssuerCertificateId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Issuer certificate ID is required for non-ROOT certificates");
+            }
+            issuerCert = certificateService.findById(dto.getIssuerCertificateId());
+
+            if (!issuerCert.isCACertificate()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Issuer must be a CA certificate (ROOT or INTERMEDIATE)");
+            }
+
+            validateIssuerChain(issuerCert);
+
+            if (currentUser.getUser().getUserRole() == UserRole.CA_USER) {
+                long userOrgId = currentUser.getUser().getOrganization().getId();
+                if (userOrgId != issuerCert.getOrganizationId()) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                            "CA users may only use issuers from their own organization");
+                }
+            }
+
+            if (dto.getCertificateType() == CertificateType.ROOT) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "CA users may only issue INTERMEDIATE or END_ENTITY certificates");
+            }
+
+            if (!dto.getNotBefore().isBefore(dto.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "notBefore must be before notAfter");
+            }
+            if (dto.getNotBefore().isBefore(issuerCert.getNotBefore().truncatedTo(ChronoUnit.MINUTES))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate notBefore cannot precede issuer notBefore ("
+                                + issuerCert.getNotBefore() + ")");
+            }
+            if (dto.getNotAfter().isAfter(issuerCert.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Certificate validity period cannot exceed issuer validity period ("
+                                + issuerCert.getNotAfter() + ")");
+            }
+
+            issuerPrivKey = certificateService.decryptCertificatePrivateKey(issuerCert);
+            issuerX509 = parseX509(issuerCert.getCertificateContent());
+        } else {
+            if (currentUser.getUser().getUserRole() != UserRole.ADMIN) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Only ADMIN can issue ROOT certificates");
+            }
+            if (!dto.getNotBefore().isBefore(dto.getNotAfter())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "notBefore must be before notAfter");
+            }
+        }
+
+        User targetUser = null;
+        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+            targetUser = userService.findByEmail(dto.getEmail()).orElse(null);
+            if (targetUser != null && !isRoot && currentUser.getUser().getUserRole() == UserRole.CA_USER) {
+                long userOrgId = currentUser.getUser().getOrganization().getId();
+                long targetUserOrgId = targetUser.getOrganization().getId();
+                if (userOrgId != targetUserOrgId) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                            "CA users may only issue certificates for users in their own organization");
+                }
+            }
+        }
+
+        ExtensionsDto ext = normalizeExtensions(dto.getExtensions(), dto.getCertificateType());
+
+        try {
+            long orgId = currentUser.getUser().getOrganization().getId();
+            KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
+            gen.initialize(KEY_SIZE, new SecureRandom());
+            KeyPair keyPair = gen.generateKeyPair();
+            X500NameBuilder nameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
+            nameBuilder.addRDN(BCStyle.CN, dto.getCommonName());
+            nameBuilder.addRDN(BCStyle.O, dto.getOrganizationName());
+            if (dto.getOrganizationalUnit() != null && !dto.getOrganizationalUnit().isBlank()) {
+                nameBuilder.addRDN(BCStyle.OU, dto.getOrganizationalUnit());
+            }
+            nameBuilder.addRDN(BCStyle.C, dto.getCountry());
+            if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+                nameBuilder.addRDN(BCStyle.E, dto.getEmail());
+            }
+            X500Name subjectDN = nameBuilder.build();
+            BigInteger serial = new BigInteger(128, new SecureRandom()).abs();
+            Date notBefore = Date.from(dto.getNotBefore().atZone(ZoneId.systemDefault()).toInstant());
+            Date notAfter  = Date.from(dto.getNotAfter().atZone(ZoneId.systemDefault()).toInstant());
+            X500Name issuerDN;
+            java.security.PrivateKey signingKey;
+            PublicKey issuerPublicKey;
+
+            if (isRoot) {
+                issuerDN = subjectDN;
+                signingKey = keyPair.getPrivate();
+                issuerPublicKey = keyPair.getPublic();
+            } else {
+                issuerDN = X500Name.getInstance(ASN1Primitive.fromByteArray(issuerX509.getSubjectX500Principal().getEncoded()));
+                signingKey = issuerPrivKey;
+                issuerPublicKey = issuerX509.getPublicKey();
+            }
+
+            JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+                    issuerDN, serial, notBefore, notAfter, subjectDN, keyPair.getPublic());
+            addExtensions(certBuilder, ext, keyPair.getPublic(), issuerPublicKey, isRoot);
+            ContentSigner signer = new JcaContentSignerBuilder(SIGN_ALGORITHM)
+                    .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+                    .build(signingKey);
+            byte[] certDer = certBuilder.build(signer).getEncoded();
+            SecretKey orgKey = orgKeyService.getOrCreateOrgKey(orgId);
+            EncryptedData enc = encryptionService.encrypt(keyPair.getPrivate().getEncoded(), orgKey);
+            byte[] packedPrivKey = enc.pack();
+
+            Certificate cert = new Certificate();
+            cert.setSerialNumber(serial.toString(16));
+            cert.setIssuerCertificate(isRoot ? null : issuerCert);
+            cert.setOrganizationId(orgId);
+            cert.setUserId(targetUser != null ? targetUser.getId() : null);
+            cert.setCommonName(dto.getCommonName());
+            cert.setOrganizationName(dto.getOrganizationName());
+            cert.setOrganizationalUnit(dto.getOrganizationalUnit());
+            cert.setCountry(dto.getCountry());
+            cert.setEmail(dto.getEmail());
+            cert.setCertificateType(dto.getCertificateType());
+            cert.setNotBefore(dto.getNotBefore());
+            cert.setNotAfter(dto.getNotAfter());
+            cert.setCertificateContent(certDer);
+            cert.setPublicKey(keyPair.getPublic().getEncoded());
+            cert.setStatus(CertificateStatus.ACTIVE);
+            cert.setExtensions(extensionsToJson(ext));
+
+            return new Pair<Certificate, PrivateKey>(certificateService.saveCertificate(cert), keyPair.getPrivate());
 
         } catch (ResponseStatusException e) {
             throw e;

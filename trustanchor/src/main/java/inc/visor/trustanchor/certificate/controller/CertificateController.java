@@ -1,8 +1,10 @@
 package inc.visor.trustanchor.certificate.controller;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
+import inc.visor.trustanchor.certificate.dto.CertificateRequestDto;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -64,8 +66,8 @@ public class CertificateController {
         return ResponseEntity.status(HttpStatus.CREATED).body(new CertificateDto(certificate));
     }
 
+
     @GetMapping("/issuers")
-    @PreAuthorize("hasAnyRole('ADMIN', 'CA_USER')")
     public ResponseEntity<List<CertificateDto>> getAvailableIssuers(
             @AuthenticationPrincipal AnchorUserDetails currentUser) {
         Long orgId = currentUser.getUser().getOrganization().getId();
