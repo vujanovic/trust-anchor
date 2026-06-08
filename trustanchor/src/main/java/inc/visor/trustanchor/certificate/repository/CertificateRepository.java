@@ -1,5 +1,6 @@
 package inc.visor.trustanchor.certificate.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,7 @@ public interface CertificateRepository extends JpaRepository<Certificate, Long> 
     // Admin can use any active CA cert:
     List<Certificate> findByCertificateTypeInAndStatus(List<CertificateType> types, CertificateStatus status);
 
+    List<Certificate> findAllByStatus(CertificateStatus certificateStatus);
+
+    List<Certificate> findAllByCertificateType(CertificateType certificateType);
 }

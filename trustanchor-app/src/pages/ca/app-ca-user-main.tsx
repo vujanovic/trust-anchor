@@ -39,6 +39,7 @@ import {
 } from "@/service/certificate-service"
 import type { CertificateDto, CsrDashboardResponse } from "@/types/certificate"
 import { DownloadCertificateSheet } from "@/pages/user/dialog/download-certificate-sheet"
+import { RevocationModal } from "@/pages/user/dialog/revocation-modal.tsx"
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -133,6 +134,7 @@ export default function AppCAUserMain() {
   const [submitting, setSubmitting] = useState(false)
   const [downloading, setDownloading] = useState<CertificateDto | null>(null)
   const [darkMode, setDarkMode] = useState(true)
+  const [revokingCert, setRevokingCert] = useState<CertificateDto | null>(null)
 
   const [requests, setRequests] = useState<CsrDashboardResponse[]>([])
   const [loadingRequests, setLoadingRequests] = useState(true)
@@ -491,16 +493,35 @@ export default function AppCAUserMain() {
                       <TableCell className="text-sm text-muted-foreground">
                         {fmtDate(cert.notAfter)}
                       </TableCell>
+                      {cert.status === "REVOKED" && cert.revocationReason && (
+                        <TableCell className="text-xs text-red-500">
+                          {cert.revocationReason}
+                        </TableCell>
+                      )}
+                      {cert.status !== "REVOKED" && <TableCell />}
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto px-2 py-1"
-                          onClick={() => setDownloading(cert)}
-                        >
-                          <Download className="mr-1.5 h-3.5 w-3.5" />
-                          Download
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto px-2 py-1"
+                            onClick={() => setDownloading(cert)}
+                          >
+                            <Download className="mr-1.5 h-3.5 w-3.5" />
+                            Download
+                          </Button>
+                          {cert.status === "ACTIVE" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto px-2 py-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setRevokingCert(cert)}
+                            >
+                              <Shield className="mr-1.5 h-3.5 w-3.5" />
+                              Revoke
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -510,14 +531,12 @@ export default function AppCAUserMain() {
           </Card>
         )}
 
-        {/* Tab 2: Issue Certificate */}
         {activeTab === "issue" && (
           <Card className="p-6 fade-in">
             <h2 className="mb-6 text-base font-bold text-card-foreground">
               Issue New Certificate
             </h2>
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Issuer */}
               <div className="space-y-1.5">
                 <label className={lbl}>Issuer Certificate *</label>
                 <select
@@ -539,7 +558,6 @@ export default function AppCAUserMain() {
                 </select>
               </div>
 
-              {/* Certificate Type */}
               <div className="space-y-1.5">
                 <label className={lbl}>Certificate Type *</label>
                 <div className="flex gap-6">
@@ -562,7 +580,6 @@ export default function AppCAUserMain() {
                 </div>
               </div>
 
-              {/* DN Fields */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className={lbl}>Common Name (CN) *</label>
@@ -620,8 +637,6 @@ export default function AppCAUserMain() {
                   />
                 </div>
               </div>
-
-              {/* Validity */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className={lbl}>Valid From *</label>
@@ -644,8 +659,6 @@ export default function AppCAUserMain() {
                   />
                 </div>
               </div>
-
-              {/* Extensions (collapsible) */}
               <div className="rounded-lg border border-border">
                 <button
                   type="button"
@@ -804,7 +817,6 @@ export default function AppCAUserMain() {
               <p className="text-sm font-bold text-card-foreground">
                 Incoming CSR Signature Requests
               </p>
-
             </div>
             {loadingRequests ? (
               <div className="px-6 py-12 text-center text-sm text-muted-foreground">
@@ -848,9 +860,7 @@ export default function AppCAUserMain() {
                             variant="outline"
                             size="sm"
                             className="h-8 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
-                            onClick={() =>
-                              handleApproveCsr(req.id)
-                            }
+                            onClick={() => handleApproveCsr(req.id)}
                           >
                             <CheckCircle className="mr-1 h-3.5 w-3.5" />
                             Approve
@@ -881,6 +891,22 @@ export default function AppCAUserMain() {
         onClose={() => setDownloading(null)}
         onDownloaded={() => setDownloading(null)}
       />
+      {revokingCert && (
+        <RevocationModal
+          cert={revokingCert as unknown as CertificateDto}
+          onClose={() => setRevokingCert(null)}
+          onConfirm={(updatedCert) => {
+            setCerts((prev) =>
+              prev.map((c) =>
+                c.id === updatedCert.id
+                  ? (updatedCert as unknown as CertificateDto)
+                  : c
+              )
+            )
+            setRevokingCert(null)
+          }}
+        />
+      )}
 
       <footer className="mt-16 border-t border-border px-6 py-8 text-center">
         <p className="text-xs text-muted-foreground">

@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { api } from "@/lib/axios.ts"
 import { DownloadCertificateSheet } from "@/pages/user/dialog/download-certificate-sheet"
 import type { CertificateDto } from "@/types/certificate"
+import { RevocationModal } from "@/pages/user/dialog/revocation-modal.tsx"
 
 interface Certificate {
   id: number
@@ -35,7 +36,7 @@ interface Certificate {
   certificateType: "ROOT" | "INTERMEDIATE" | "END_ENTITY"
   notBefore: string
   notAfter: string
-  status: "VALID" | "REVOKED" | "EXPIRED"
+  status: "ACTIVE" | "REVOKED" | "EXPIRED"
   revokedAt: string | null
   revocationReason: string | null
   crlDistributionPoint: string
@@ -54,6 +55,7 @@ export default function AppAdminCertificates() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [downloading, setDownloading] = useState<CertificateDto | null>(null)
+  const [revokingCert, setRevokingCert] = useState<Certificate | null>(null)
 
   useEffect(() => {
     const fetchCertificates = async () => {
@@ -161,13 +163,13 @@ export default function AppAdminCertificates() {
             <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar-accent/5 px-8 py-4">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  {selectedCert.status === "VALID" ? (
+                  {selectedCert.status === "ACTIVE" ? (
                     <ShieldCheck className="size-4 text-emerald-500" />
                   ) : (
                     <ShieldX className="size-4 text-destructive" />
                   )}
                   <span
-                    className={`text-[10px] font-bold tracking-widest uppercase ${selectedCert.status === "VALID" ? "text-emerald-500" : "text-destructive"}`}
+                    className={`text-[10px] font-bold tracking-widest uppercase ${selectedCert.status === "ACTIVE" ? "text-emerald-500" : "text-destructive"}`}
                   >
                     {selectedCert.status}
                   </span>
@@ -191,11 +193,12 @@ export default function AppAdminCertificates() {
                 >
                   <Download className="mr-2 size-3" /> Download
                 </Button>
-                {selectedCert.status === "VALID" && (
+                {selectedCert.status === "ACTIVE" && (
                   <Button
                     variant="outline"
                     size="sm"
                     className="rounded-none border-sidebar-border transition-colors hover:bg-destructive/20 hover:text-destructive"
+                    onClick={() => setRevokingCert(selectedCert)}
                   >
                     <ShieldAlert className="mr-2 size-3" /> Revoke
                   </Button>
@@ -342,6 +345,22 @@ export default function AppAdminCertificates() {
         onClose={() => setDownloading(null)}
         onDownloaded={() => setDownloading(null)}
       />
+      {revokingCert && (
+        <RevocationModal
+          cert={revokingCert as unknown as CertificateDto}
+          onClose={() => setRevokingCert(null)}
+          onConfirm={(updatedCert) => {
+            setCertificates((prev) =>
+              prev.map((c) =>
+                c.id === updatedCert.id
+                  ? (updatedCert as unknown as Certificate)
+                  : c
+              )
+            )
+            setRevokingCert(null)
+          }}
+        />
+      )}
     </div>
   )
 }

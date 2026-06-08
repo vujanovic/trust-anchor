@@ -8,9 +8,12 @@ import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import javax.crypto.SecretKey;
 
+import inc.visor.trustanchor.certificate.enums.RevocationReason;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,12 +47,16 @@ public class CertificateService {
         return certificateRepository.findAll();
     }
 
+    public List<Certificate> getAllRevokedCertificates(){
+        return certificateRepository.findAllByStatus(CertificateStatus.REVOKED);
+    }
+
     public List<Certificate> getUserCertificates(Long userId) {
         return certificateRepository.findByUserId(userId);
     }
 
-    public Certificate getCertificate(Long id) {
-        return certificateRepository.findById(id).orElse(null);
+    public Optional<Certificate> getCertificate(Long id) {
+        return certificateRepository.findById(id);
     }
 
     @Transactional
@@ -129,5 +136,60 @@ public class CertificateService {
         };
         if (!allowed) throw new UnauthorizedAccessException("Access denied");
         return cert;
+    }
+
+    public X509Certificate getRootCaCertificate() throws Exception {
+        Certificate rootEntity = certificateRepository.findAllByCertificateType((CertificateType.ROOT))
+                .stream()
+                .findFirst()
+                .orElseThrow(NotFoundException::new);
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509", "BC");
+        return (X509Certificate) certFactory.generateCertificate(
+                new ByteArrayInputStream(rootEntity.getCertificateContent())
+        );
+    }
+
+    public PrivateKey getRootCaPrivateKey() throws Exception {
+        Certificate rootEntity = certificateRepository.findAllByCertificateType(CertificateType.ROOT)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Root CA sertifikat nije pronađen u bazi podataka!"));
+        SecretKey orgKey = orgKeyService.getOrCreateOrgKey(rootEntity.getOrganizationId());
+        EncryptedData encryptedData = EncryptedData.unpack(rootEntity.getPrivateKeyEncrypted());
+        byte[] decryptedKeyBytes = encryptionService.decrypt(encryptedData, orgKey);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decryptedKeyBytes);
+        return keyFactory.generatePrivate(keySpec);
+    }
+
+    @Transactional
+    public Certificate revokeCertificate(Long certificateId, RevocationReason reason, AnchorUserDetails currentUser) {
+        Certificate certificate = authorizeAndFetch(certificateId, currentUser);
+        if (certificate.getStatus() == CertificateStatus.REVOKED) {
+            throw new IllegalArgumentException("Certificate already revoked!");
+        }
+        certificate.setStatus(CertificateStatus.REVOKED);
+        certificate.setRevocationReason(reason);
+        certificate.setRevokedAt(java.time.LocalDateTime.now());
+        return certificateRepository.save(certificate);
+    }
+
+    public boolean isCertificateChainValid(Long certificateId) {
+        Certificate current = certificateRepository.findById(certificateId).orElse(null);
+        while (current != null) {
+            if (current.getStatus() == CertificateStatus.REVOKED) {
+                return false;
+            }
+            if (java.time.LocalDateTime.now().isAfter(current.getNotAfter())) {
+                return false;
+            }
+            Long issuerId = current.getIssuerCertificate() != null ? current.getIssuerCertificate().getId() : null;
+            if (issuerId == null || issuerId.equals(current.getId())) {
+                break;
+            }
+
+            current = certificateRepository.findById(issuerId).orElse(null);
+        }
+        return true;
     }
 }

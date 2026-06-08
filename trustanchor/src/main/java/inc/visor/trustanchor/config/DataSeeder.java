@@ -17,6 +17,7 @@ import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -63,50 +64,50 @@ public class DataSeeder implements CommandLineRunner {
         }
 
         Organization org = organizationRepository.save(
-            Organization.builder()
-                .name("TrustAnchor Root")
-                .code("TRUSTANCHOR")
-                .email("root@trustanchor.local")
-                .domain("trustanchor.local")
-                .location("Belgrade, Serbia")
-                .registrationDate(LocalDateTime.now().toLocalDate().atStartOfDay())
+                Organization.builder()
+                        .name("TrustAnchor Root")
+                        .code("TRUSTANCHOR")
+                        .email("root@trustanchor.local")
+                        .domain("trustanchor.local")
+                        .location("Belgrade, Serbia")
+                        .registrationDate(LocalDateTime.now().toLocalDate().atStartOfDay())
+                        .build()
+        );
+
+        User admin = userRepository.save(User.builder()
+                .firstName("Admin")
+                .lastName("TrustAnchor")
+                .email("admin@gmail.com")
+                .password(passwordEncoder.encode("TestPassword123!"))
+                .organization(org)
+                .userRole(UserRole.ADMIN)
+                .userStatus(UserStatus.ACTIVE)
                 .build()
         );
 
-        userRepository.save(User.builder()
-            .firstName("Admin")
-            .lastName("TrustAnchor")
-            .email("admin@gmail.com")
-            .password(passwordEncoder.encode("TestPassword123!"))
-            .organization(org)
-            .userRole(UserRole.ADMIN)
-            .userStatus(UserStatus.ACTIVE)
-            .build()
+        User caUser = userRepository.save(User.builder()
+                .firstName("CA")
+                .lastName("User")
+                .email("ca@gmail.com")
+                .password(passwordEncoder.encode("TestPassword123!"))
+                .organization(org)
+                .userRole(UserRole.CA_USER)
+                .userStatus(UserStatus.ACTIVE)
+                .build()
         );
 
-        userRepository.save(User.builder()
-            .firstName("CA")
-            .lastName("User")
-            .email("ca@gmail.com")
-            .password(passwordEncoder.encode("TestPassword123!"))
-            .organization(org)
-            .userRole(UserRole.CA_USER)
-            .userStatus(UserStatus.ACTIVE)
-            .build()
+        User regularUser = userRepository.save(User.builder()
+                .firstName("Regular")
+                .lastName("User")
+                .email("user@gmail.com")
+                .password(passwordEncoder.encode("TestPassword123!"))
+                .organization(org)
+                .userRole(UserRole.USER)
+                .userStatus(UserStatus.ACTIVE)
+                .build()
         );
 
-        userRepository.save(User.builder()
-            .firstName("Regular")
-            .lastName("User")
-            .email("user@gmail.com")
-            .password(passwordEncoder.encode("TestPassword123!"))
-            .organization(org)
-            .userRole(UserRole.USER)
-            .userStatus(UserStatus.ACTIVE)
-            .build()
-        );
-
-        userRepository.save(User.builder()
+        User regularUser2 = userRepository.save(User.builder()
                 .firstName("Regular 2")
                 .lastName("User 2")
                 .email("user2@gmail.com")
@@ -117,19 +118,44 @@ public class DataSeeder implements CommandLineRunner {
                 .build()
         );
 
-        seedRootCertificate(org);
+        KeyPair rootKeyPair = generateKeyPair();
+        Certificate rootCert = seedRootCertificate(org, rootKeyPair);
+
+        KeyPair intermediateKeyPair = generateKeyPair();
+        Certificate intermediateCert = seedChildCertificate(
+                org,
+                caUser,
+                rootCert,
+                rootKeyPair,
+                intermediateKeyPair,
+                CertificateType.INTERMEDIATE,
+                "TrustAnchor Sub-CA"
+        );
+
+        KeyPair eeKeyPair = generateKeyPair();
+        seedChildCertificate(
+                org,
+                regularUser,
+                intermediateCert,
+                intermediateKeyPair,
+                eeKeyPair,
+                CertificateType.END_ENTITY,
+                "Milos Peric EE"
+        );
     }
 
-    private void seedRootCertificate(Organization org) throws Exception {
+    private KeyPair generateKeyPair() throws Exception {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
         gen.initialize(KEY_SIZE, new SecureRandom());
-        KeyPair keyPair = gen.generateKeyPair();
+        return gen.generateKeyPair();
+    }
 
+    private Certificate seedRootCertificate(Organization org, KeyPair keyPair) throws Exception {
         X500Name dn = new X500NameBuilder(BCStyle.INSTANCE)
-            .addRDN(BCStyle.CN, "TrustAnchor Root CA")
-            .addRDN(BCStyle.O, "TrustAnchor")
-            .addRDN(BCStyle.C, "RS")
-            .build();
+                .addRDN(BCStyle.CN, "TrustAnchor Root CA")
+                .addRDN(BCStyle.O, "TrustAnchor")
+                .addRDN(BCStyle.C, "RS")
+                .build();
 
         BigInteger serial = new BigInteger(128, new SecureRandom()).abs();
         LocalDateTime notBefore = LocalDateTime.now();
@@ -139,20 +165,20 @@ public class DataSeeder implements CommandLineRunner {
         Date to   = Date.from(notAfter.atZone(ZoneId.systemDefault()).toInstant());
 
         JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
-            dn, serial, from, to, dn, keyPair.getPublic()
+                dn, serial, from, to, dn, keyPair.getPublic()
         );
 
         JcaX509ExtensionUtils utils = new JcaX509ExtensionUtils();
         builder.addExtension(Extension.subjectKeyIdentifier, false,
-            utils.createSubjectKeyIdentifier(keyPair.getPublic()));
+                utils.createSubjectKeyIdentifier(keyPair.getPublic()));
         builder.addExtension(Extension.basicConstraints, true,
-            new BasicConstraints(true));
+                new BasicConstraints(true));
         builder.addExtension(Extension.keyUsage, true,
-            new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature));
+                new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature));
 
         ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
-            .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-            .build(keyPair.getPrivate());
+                .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+                .build(keyPair.getPrivate());
         byte[] certDer = builder.build(signer).getEncoded();
 
         SecretKey orgKey = orgKeyService.getOrCreateOrgKey(org.getId());
@@ -174,7 +200,86 @@ public class DataSeeder implements CommandLineRunner {
         cert.setStatus(CertificateStatus.ACTIVE);
         cert.setExtensions("{\"isCA\":true,\"keyCertSign\":true,\"crlSign\":true,\"digitalSignature\":true}");
 
-        certificateRepository.save(cert);
+        return certificateRepository.save(cert);
     }
 
+    private Certificate seedChildCertificate(
+            Organization org,
+            User user,
+            Certificate issuerCert,
+            KeyPair issuerKeyPair,
+            KeyPair childKeyPair,
+            CertificateType type,
+            String commonName
+    ) throws Exception {
+
+        X509CertificateHolder holder = new X509CertificateHolder(issuerCert.getCertificateContent());
+        X500Name issuerDn = holder.getSubject();
+
+        X500Name subjectDn = new X500NameBuilder(BCStyle.INSTANCE)
+                .addRDN(BCStyle.CN, commonName)
+                .addRDN(BCStyle.O, org.getName())
+                .addRDN(BCStyle.C, "RS")
+                .build();
+
+        BigInteger serial = new BigInteger(128, new SecureRandom()).abs();
+        LocalDateTime notBefore = LocalDateTime.now();
+        LocalDateTime notAfter = (type == CertificateType.INTERMEDIATE) ? notBefore.plusYears(5) : notBefore.plusYears(2);
+
+        Date from = Date.from(notBefore.atZone(ZoneId.systemDefault()).toInstant());
+        Date to   = Date.from(notAfter.atZone(ZoneId.systemDefault()).toInstant());
+
+        JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+                issuerDn, serial, from, to, subjectDn, childKeyPair.getPublic()
+        );
+
+        JcaX509ExtensionUtils utils = new JcaX509ExtensionUtils();
+        builder.addExtension(Extension.subjectKeyIdentifier, false, utils.createSubjectKeyIdentifier(childKeyPair.getPublic()));
+        builder.addExtension(Extension.authorityKeyIdentifier, false, utils.createAuthorityKeyIdentifier(issuerKeyPair.getPublic()));
+
+        if (type == CertificateType.INTERMEDIATE) {
+            builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
+            builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature));
+        } else {
+            builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
+            builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
+        }
+
+//        String crlUrl = "https://localhost:8443/api/crl";
+//        org.bouncycastle.asn1.x509.GeneralName gn = new org.bouncycastle.asn1.x509.GeneralName(org.bouncycastle.asn1.x509.GeneralName.uniformResourceIdentifier, crlUrl);
+//        org.bouncycastle.asn1.x509.CRLDistPoint crlDistPoint = new org.bouncycastle.asn1.x509.CRLDistPoint(new org.bouncycastle.asn1.x509.DistributionPoint[]{
+//            new org.bouncycastle.asn1.x509.DistributionPoint(new org.bouncycastle.asn1.x509.DistributionPointName(new org.bouncycastle.asn1.x509.GeneralNames(gn)), null, null)
+//        });
+//        builder.addExtension(Extension.cRLDistributionPoints, false, crlDistPoint);
+
+        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
+                .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+                .build(issuerKeyPair.getPrivate());
+        byte[] certDer = builder.build(signer).getEncoded();
+
+        SecretKey orgKey = orgKeyService.getOrCreateOrgKey(org.getId());
+        EncryptedData enc = encryptionService.encrypt(childKeyPair.getPrivate().getEncoded(), orgKey);
+        byte[] packedKey = enc.pack();
+
+        Certificate cert = new Certificate();
+        cert.setSerialNumber(serial.toString(16));
+        cert.setOrganizationId(org.getId());
+        cert.setUserId(user.getId());
+        cert.setCommonName(commonName);
+        cert.setOrganizationName(org.getName());
+        cert.setCountry("RS");
+        cert.setCertificateType(type);
+        cert.setNotBefore(notBefore);
+        cert.setNotAfter(notAfter);
+        cert.setCertificateContent(certDer);
+        cert.setPublicKey(childKeyPair.getPublic().getEncoded());
+        cert.setPrivateKeyEncrypted(packedKey);
+        cert.setStatus(CertificateStatus.ACTIVE);
+
+        cert.setExtensions(type == CertificateType.INTERMEDIATE ?
+                "{\"isCA\":true,\"keyCertSign\":true,\"crlSign\":true,\"digitalSignature\":true}" :
+                "{\"isCA\":false,\"digitalSignature\":true,\"keyEncipherment\":true}");
+
+        return certificateRepository.save(cert);
+    }
 }
