@@ -4,18 +4,14 @@ import java.security.PrivateKey;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import inc.visor.trustanchor.certificate.dto.*;
 import inc.visor.trustanchor.certificate.entity.Request;
-import inc.visor.trustanchor.certificate.enums.CertificateType;
+import inc.visor.trustanchor.certificate.enums.CertificateStatus;
 import inc.visor.trustanchor.certificate.service.CsrService;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
+import inc.visor.trustanchor.exception.NotFoundException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -205,4 +201,16 @@ public class CertificateController {
         return ResponseEntity.ok(HttpStatus.OK);
     }
 
+    @PostMapping("revoke")
+    public ResponseEntity<HttpStatus> revokeCertificate(CertificateRevocationDto revocationDto, @AuthenticationPrincipal AnchorUserDetails currentUser) {
+        if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
+        certificateService.revokeCertificate(revocationDto.getCertificateId(), revocationDto.getRevocationReason(), currentUser);
+        return ResponseEntity.ok(HttpStatus.OK);
+    }
+
+    @GetMapping("/{id}/validate")
+    public ResponseEntity<?> validateCertificateChain(@PathVariable Long id) {
+        boolean isValid = certificateService.isCertificateChainValid(id);
+        return ResponseEntity.ok(Map.of("valid", isValid));
+    }
 }
