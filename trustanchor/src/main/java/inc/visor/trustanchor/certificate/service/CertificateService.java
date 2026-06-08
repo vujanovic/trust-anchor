@@ -163,15 +163,15 @@ public class CertificateService {
     }
 
     @Transactional
-    public void revokeCertificate(Long certificateId, RevocationReason reason, AnchorUserDetails currentUser) {
-        Certificate cert = authorizeAndFetch(certificateId, currentUser);
-        if (cert.getStatus() == CertificateStatus.REVOKED) {
+    public Certificate revokeCertificate(Long certificateId, RevocationReason reason, AnchorUserDetails currentUser) {
+        Certificate certificate = authorizeAndFetch(certificateId, currentUser);
+        if (certificate.getStatus() == CertificateStatus.REVOKED) {
             throw new IllegalArgumentException("Certificate already revoked!");
         }
-        cert.setStatus(CertificateStatus.REVOKED);
-        cert.setRevocationReason(reason);
-        cert.setRevokedAt(java.time.LocalDateTime.now());
-        certificateRepository.save(cert);
+        certificate.setStatus(CertificateStatus.REVOKED);
+        certificate.setRevocationReason(reason);
+        certificate.setRevokedAt(java.time.LocalDateTime.now());
+        return certificateRepository.save(certificate);
     }
 
     public boolean isCertificateChainValid(Long certificateId) {

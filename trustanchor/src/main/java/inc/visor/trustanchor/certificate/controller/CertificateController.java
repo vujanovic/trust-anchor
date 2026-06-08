@@ -55,6 +55,15 @@ public class CertificateController {
         return ResponseEntity.ok(certs);
     }
 
+    @GetMapping("/revoked")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<List<CertificateDto>> getRevokedCertificates(@AuthenticationPrincipal AnchorUserDetails currentUser) {
+        if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
+        List<CertificateDto> certs = certificateService.getAllRevokedCertificates()
+                .stream().map(CertificateDto::new).collect(Collectors.toList());
+        return ResponseEntity.ok(certs);
+    }
+
     @PostMapping("/issue")
     @PreAuthorize("hasAnyRole('ADMIN', 'CA_USER')")
     public ResponseEntity<CertificateDto> issueCertificate(
@@ -202,10 +211,10 @@ public class CertificateController {
     }
 
     @PostMapping("revoke")
-    public ResponseEntity<HttpStatus> revokeCertificate(CertificateRevocationDto revocationDto, @AuthenticationPrincipal AnchorUserDetails currentUser) {
+    public ResponseEntity<CertificateDto> revokeCertificate(@RequestBody CertificateRevocationDto revocationDto, @AuthenticationPrincipal AnchorUserDetails currentUser) {
         if (currentUser == null) throw new UnauthorizedAccessException("Forbidden Access");
-        certificateService.revokeCertificate(revocationDto.getCertificateId(), revocationDto.getRevocationReason(), currentUser);
-        return ResponseEntity.ok(HttpStatus.OK);
+        Certificate certificate = certificateService.revokeCertificate(revocationDto.getCertificateId(), revocationDto.getRevocationReason(), currentUser);
+        return ResponseEntity.ok(new CertificateDto(certificate));
     }
 
     @GetMapping("/{id}/validate")
