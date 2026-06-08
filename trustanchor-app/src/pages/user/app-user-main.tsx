@@ -101,12 +101,9 @@ export default function AppUserMain() {
     setRevoking(cert)
   }
 
-  const confirmRevoke = () => {
-    if (!revoking) return
+  const confirmRevoke = (updatedCert: CertificateDto) => {
     setCerts((prev) =>
-      prev.map((c) =>
-        c.id === revoking.id ? { ...c, status: "REVOKED" as const } : c
-      )
+      prev.map((c) => (c.id === updatedCert.id ? updatedCert : c))
     )
     setRevoking(null)
   }
@@ -297,7 +294,11 @@ export default function AppUserMain() {
 
         {activeTab === "request" && (
           <Card className="p-6 fade-in">
-            <RequestTab cas={MOCK_CAS} email={userEmail} organizationName={userOrganizationName} />
+            <RequestTab
+              cas={MOCK_CAS}
+              email={userEmail}
+              organizationName={userOrganizationName}
+            />
           </Card>
         )}
       </div>
@@ -309,7 +310,6 @@ export default function AppUserMain() {
         onDownloaded={() => setDownloading(null)}
       />
 
-      {/* Revocation Modal */}
       {revoking && (
         <RevocationModal
           cert={revoking}
