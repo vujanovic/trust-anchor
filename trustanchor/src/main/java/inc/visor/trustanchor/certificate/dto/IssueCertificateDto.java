@@ -23,6 +23,9 @@ public class IssueCertificateDto {
     @NotNull LocalDateTime notAfter;
     ExtensionsDto extensions;
 
+    public IssueCertificateDto() {
+    }
+
     public IssueCertificateDto(CertificateRequestDto dto) {
         this.setCertificateType(CertificateType.END_ENTITY);
         this.setIssuerCertificateId(dto.getIssuerId());
