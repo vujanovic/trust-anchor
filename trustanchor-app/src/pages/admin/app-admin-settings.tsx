@@ -13,8 +13,10 @@ import {
 import {
   getMasterKeyStatus,
   rotateMasterKey,
+  rotateRootKey,
   type MasterKeyRotationResult,
   type MasterKeyStatus,
+  type RootKeyRotationResult,
 } from "@/lib/master-key-service"
 
 const formatDate = (value: string | null | undefined) =>
@@ -28,6 +30,10 @@ export default function AppAdminSettings() {
   const [lastResult, setLastResult] = useState<MasterKeyRotationResult | null>(
     null
   )
+  const [rotatingRoot, setRotatingRoot] = useState(false)
+  const [confirmRootOpen, setConfirmRootOpen] = useState(false)
+  const [lastRootResult, setLastRootResult] =
+    useState<RootKeyRotationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const fetchStatus = useCallback(async () => {
@@ -43,6 +49,7 @@ export default function AppAdminSettings() {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line
     fetchStatus()
   }, [fetchStatus])
 
@@ -59,6 +66,22 @@ export default function AppAdminSettings() {
     } finally {
       setRotating(false)
       setConfirmOpen(false)
+    }
+  }
+
+  const handleRotateRoot = async () => {
+    setRotatingRoot(true)
+    try {
+      const result = await rotateRootKey()
+      setLastRootResult(result)
+      setError(null)
+      await fetchStatus()
+    } catch (err) {
+      console.error("Root key rotation failed", err)
+      setError("Root key rotation failed — no changes were applied.")
+    } finally {
+      setRotatingRoot(false)
+      setConfirmRootOpen(false)
     }
   }
 
@@ -101,7 +124,7 @@ export default function AppAdminSettings() {
     <div className="w-full max-w-6xl space-y-6 p-8">
       <div>
         <h2 className="text-xl font-bold tracking-tight text-foreground uppercase italic">
-          Master Key Rotation
+          Key Management
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           The master key (stored in Vault) wraps the root key, which wraps
@@ -123,9 +146,21 @@ export default function AppAdminSettings() {
         </div>
       )}
 
+      {lastRootResult && !error && (
+        <div className="border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 font-mono text-xs text-emerald-500">
+          Root key rotated: #{lastRootResult.previousRootKeyId} → #
+          {lastRootResult.newRootKeyId} ·{" "}
+          {lastRootResult.organizationKeysRewrapped} organization keys
+          re-wrapped at {formatDate(lastRootResult.rotatedAt)}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label} className="border-sidebar-border bg-sidebar/40">
+          <Card
+            key={stat.label}
+            className="border-sidebar-border bg-sidebar/40"
+          >
             <CardContent className="flex items-center justify-between p-6">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">
@@ -142,7 +177,7 @@ export default function AppAdminSettings() {
       <div className="flex items-center justify-between border border-border bg-sidebar/40 px-6 py-4">
         <div>
           <p className="text-sm font-semibold text-foreground">
-            Manual rotation
+            Master key rotation
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Next automatic rotation:{" "}
@@ -155,6 +190,28 @@ export default function AppAdminSettings() {
         <Button onClick={() => setConfirmOpen(true)} disabled={rotating}>
           <RefreshCw className={`size-4 ${rotating ? "animate-spin" : ""}`} />
           {rotating ? "Rotating..." : "Rotate Now"}
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-between border border-border bg-sidebar/40 px-6 py-4">
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            Root key rotation
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Generates a new root key and re-wraps all organization keys under it
+            — use if the root key is suspected compromised.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setConfirmRootOpen(true)}
+          disabled={rotatingRoot}
+        >
+          <KeyRound
+            className={`size-4 ${rotatingRoot ? "animate-pulse" : ""}`}
+          />
+          {rotatingRoot ? "Rotating..." : "Rotate Root Key"}
         </Button>
       </div>
 
@@ -222,6 +279,33 @@ export default function AppAdminSettings() {
             </Button>
             <Button onClick={handleRotate} disabled={rotating}>
               {rotating ? "Rotating..." : "Confirm Rotation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmRootOpen} onOpenChange={setConfirmRootOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rotate root key now?</DialogTitle>
+            <DialogDescription>
+              A new root key will be generated and wrapped under the current
+              master key. Every organization key is decrypted and re-wrapped
+              under the new root key in a single database transaction — if
+              anything fails, no changes are applied. Certificate private keys
+              are not re-encrypted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmRootOpen(false)}
+              disabled={rotatingRoot}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRotateRoot} disabled={rotatingRoot}>
+              {rotatingRoot ? "Rotating..." : "Confirm Rotation"}
             </Button>
           </DialogFooter>
         </DialogContent>

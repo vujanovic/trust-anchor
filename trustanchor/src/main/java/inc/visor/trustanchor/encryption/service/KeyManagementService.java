@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -19,12 +20,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.vault.core.VaultOperations;
 import org.springframework.vault.support.Versioned;
 
 import inc.visor.trustanchor.encryption.dto.EncryptedData;
 import inc.visor.trustanchor.encryption.dto.MasterKeyRotationResultDto;
+import inc.visor.trustanchor.encryption.dto.RootKeyRotationResultDto;
+import inc.visor.trustanchor.encryption.entity.OrganizationKey;
 import inc.visor.trustanchor.encryption.entity.RootKey;
+import inc.visor.trustanchor.encryption.repository.OrganizationKeyRepository;
 import inc.visor.trustanchor.encryption.repository.RootKeyRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -47,9 +52,14 @@ public class KeyManagementService {
     private static final String ENV_MASTER_KEY = "MASTER_ENCRYPTION_KEY";
 
     private final RootKeyRepository rootKeyRepository;
+    private final OrganizationKeyRepository organizationKeyRepository;
     private final EncryptionService encryptionService;
     private final VaultOperations vaultOperations;
+    private final TransactionTemplate transactionTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
+
+    // Org-key operations hold the read lock; rotations hold the write lock.
+    private final ReentrantReadWriteLock rootKeyLock = new ReentrantReadWriteLock();
 
     @Value("${master.encryption.key}")
     private String masterKeyHex;
@@ -61,7 +71,7 @@ public class KeyManagementService {
     private volatile int masterKeyVersion;
 
     @Getter
-    private SecretKey rootKey;
+    private volatile SecretKey rootKey;
 
     @PostConstruct
     @Transactional
@@ -131,7 +141,7 @@ public class KeyManagementService {
                     
                     this.rootKey = decryptRootKey(entity, fetchMasterKeyVersion(entity.getMasterKeyVersion()));
                     
-                    replaceActiveRootKey(entity, masterKey, masterKeyVersion);
+                    replaceActiveRootKey(entity, rootKey.getEncoded(), masterKey, masterKeyVersion);
                     
                     log.info("Root key re-wrapped under master key v{}", masterKeyVersion);
                 }
@@ -147,36 +157,99 @@ public class KeyManagementService {
         }
     }
 
-    /** Generates a new 256-bit master key, writes it to Vault, and re-wraps the root key under it; synchronized to prevent concurrent rotations. */
-    public synchronized MasterKeyRotationResultDto rotateMasterKey() {
-        RootKey activeEntity = rootKeyRepository.findByIsActiveTrue()
-                .orElseThrow(() -> new IllegalStateException("No active root key found — nothing to re-wrap"));
+    /** Generates a new 256-bit master key, writes it to Vault, and re-wraps the root key under it. */
+    public MasterKeyRotationResultDto rotateMasterKey() {
+        // Write lock: excludes the other rotation and any concurrent org-key use.
+        rootKeyLock.writeLock().lock();
+        try {
+            RootKey activeEntity = rootKeyRepository.findByIsActiveTrue()
+                    .orElseThrow(() -> new IllegalStateException("No active root key found — nothing to re-wrap"));
 
-        int previousVersion = masterKeyVersion;
+            int previousVersion = masterKeyVersion;
 
-        // 1) Generate a new 256-bit AES key the same way init-vault.ps1 does during initial setup.
-        byte[] newKeyBytes = new byte[ROOT_KEY_SIZE];
-        secureRandom.nextBytes(newKeyBytes);
-        String newKeyHex = bytesToHex(newKeyBytes);
-        SecretKey newMasterKey = new SecretKeySpec(newKeyBytes, AES_ALGORITHM);
+            // 1) Generate a new 256-bit AES key the same way init-vault.ps1 does during initial setup.
+            byte[] newKeyBytes = new byte[ROOT_KEY_SIZE];
+            secureRandom.nextBytes(newKeyBytes);
+            String newKeyHex = bytesToHex(newKeyBytes);
+            SecretKey newMasterKey = new SecretKeySpec(newKeyBytes, AES_ALGORITHM);
 
-        // 2) Persist to Vault first so the key is durable before anything is encrypted with it; if this fails the rotation aborts and the old key remains active.
-        int newVersion = writeMasterKeyToVault(newKeyHex);
+            // 2) Persist to Vault first so the key is durable before anything is encrypted with it; if this fails the rotation aborts and the old key remains active.
+            int newVersion = writeMasterKeyToVault(newKeyHex);
 
-        // 3) Re-wrap the same root key value under a fresh nonce and the new master key.
-        replaceActiveRootKey(activeEntity, newMasterKey, newVersion);
+            // 3) Re-wrap the same root key value under a fresh nonce and the new master key.
+            replaceActiveRootKey(activeEntity, rootKey.getEncoded(), newMasterKey, newVersion);
 
-        // Keep .env in sync — start-vault.ps1 re-syncs it into Vault on every boot.
-        updateEnvFile(newKeyHex);
+            // Keep .env in sync — start-vault.ps1 re-syncs it into Vault on every boot.
+            updateEnvFile(newKeyHex);
 
-        // 4) Swap the in-memory key last; until this point the system ran on the old key.
-        this.masterKey = newMasterKey;
-        this.masterKeyVersion = newVersion;
+            // 4) Swap the in-memory key last; until this point the system ran on the old key.
+            this.masterKey = newMasterKey;
+            this.masterKeyVersion = newVersion;
 
-        log.info("Master key rotated: v{} -> v{} (root key re-wrapped; org keys and certificate keys untouched)",
-                previousVersion, newVersion);
+            log.info("Master key rotated: v{} -> v{} (root key re-wrapped; org keys and certificate keys untouched)",
+                    previousVersion, newVersion);
 
-        return new MasterKeyRotationResultDto(previousVersion, newVersion, LocalDateTime.now());
+            return new MasterKeyRotationResultDto(previousVersion, newVersion, LocalDateTime.now());
+        } finally {
+            rootKeyLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Rotates the root key: generates a new one, wraps it under the current master key and
+     * re-wraps every active organization key under it — all committed in a single database
+     * transaction, so a failure at any point leaves the system fully on the old root key.
+     */
+    public RootKeyRotationResultDto rotateRootKey() {
+        rootKeyLock.writeLock().lock();
+        try {
+            RootKey activeEntity = rootKeyRepository.findByIsActiveTrue()
+                    .orElseThrow(() -> new IllegalStateException("No active root key found — nothing to rotate"));
+
+            byte[] newRootKeyBytes = new byte[ROOT_KEY_SIZE];
+            secureRandom.nextBytes(newRootKeyBytes);
+            SecretKey newRootKey = new SecretKeySpec(newRootKeyBytes, AES_ALGORITHM);
+
+            // Re-wrap every active org key in memory: unwrap with the old root key, wrap with the new one.
+            List<OrganizationKey> activeOrgKeys = organizationKeyRepository.findAllByIsActiveTrue();
+            List<OrganizationKey> orgKeyRows = new ArrayList<>();
+            for (OrganizationKey oldRow : activeOrgKeys) {
+                byte[] orgKeyBytes = encryptionService.decrypt(
+                        new EncryptedData(oldRow.getEncryptedKey(), oldRow.getNonce(), oldRow.getAuthTag()),
+                        rootKey);
+                EncryptedData rewrapped = encryptionService.encrypt(orgKeyBytes, newRootKey);
+
+                orgKeyRows.add(OrganizationKey.builder()
+                        .organizationId(oldRow.getOrganizationId())
+                        .encryptedKey(rewrapped.ciphertext())
+                        .nonce(rewrapped.nonce())
+                        .authTag(rewrapped.authTag())
+                        .build());
+
+                oldRow.setActive(false);
+                oldRow.setEncryptedKey(new byte[0]);
+                oldRow.setNonce(new byte[0]);
+                oldRow.setAuthTag(new byte[0]);
+                orgKeyRows.add(oldRow);
+            }
+
+            // One transaction for everything: new root row + all org-key rows, or nothing.
+            RootKey newRootRow = transactionTemplate.execute(tx -> {
+                organizationKeyRepository.saveAll(orgKeyRows);
+                return replaceActiveRootKey(activeEntity, newRootKeyBytes, masterKey, masterKeyVersion);
+            });
+
+            // Swap in memory only after a successful commit.
+            this.rootKey = newRootKey;
+
+            log.info("Root key rotated: row #{} -> #{} ({} organization keys re-wrapped, certificate keys untouched)",
+                    activeEntity.getId(), newRootRow.getId(), activeOrgKeys.size());
+
+            return new RootKeyRotationResultDto(
+                    activeEntity.getId(), newRootRow.getId(), activeOrgKeys.size(), LocalDateTime.now());
+        } finally {
+            rootKeyLock.writeLock().unlock();
+        }
     }
 
     private int writeMasterKeyToVault(String newKeyHex) {
@@ -202,8 +275,8 @@ public class KeyManagementService {
         }
     }
 
-    private RootKey replaceActiveRootKey(RootKey oldEntity, SecretKey wrappingKey, int wrappingKeyVersion) {
-        EncryptedData rewrapped = encryptionService.encrypt(rootKey.getEncoded(), wrappingKey);
+    private RootKey replaceActiveRootKey(RootKey oldEntity, byte[] keyBytesToWrap, SecretKey wrappingKey, int wrappingKeyVersion) {
+        EncryptedData rewrapped = encryptionService.encrypt(keyBytesToWrap, wrappingKey);
 
         RootKey replacement = RootKey.builder()
                 .encryptedKey(rewrapped.ciphertext())
@@ -310,6 +383,10 @@ public class KeyManagementService {
 
     public int getMasterKeyVersion() {
         return masterKeyVersion;
+    }
+
+    public ReentrantReadWriteLock.ReadLock getRootKeyReadLock() {
+        return rootKeyLock.readLock();
     }
 
     public List<RootKey> getRootKeyHistory() {

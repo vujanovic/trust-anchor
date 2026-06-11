@@ -1,6 +1,7 @@
 package inc.visor.trustanchor.encryption.service;
 
 import java.security.SecureRandom;
+import java.util.concurrent.locks.Lock;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -26,10 +27,17 @@ public class OrganizationKeyService {
 
     @Transactional
     public SecretKey getOrCreateOrgKey(long organizationId) {
-        return organizationKeyRepository
-                .findFirstByOrganizationIdAndIsActiveTrueOrderByCreatedAtDesc(organizationId)
-                .map(this::decryptOrgKey)
-                .orElseGet(() -> generateAndStoreOrgKey(organizationId));
+        // Read lock: org keys must not be read or created while a rotation re-wraps them.
+        Lock readLock = keyManagementService.getRootKeyReadLock();
+        readLock.lock();
+        try {
+            return organizationKeyRepository
+                    .findFirstByOrganizationIdAndIsActiveTrueOrderByCreatedAtDesc(organizationId)
+                    .map(this::decryptOrgKey)
+                    .orElseGet(() -> generateAndStoreOrgKey(organizationId));
+        } finally {
+            readLock.unlock();
+        }
     }
 
     private SecretKey generateAndStoreOrgKey(long orgId) {

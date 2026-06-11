@@ -24,7 +24,17 @@ export interface MasterKeyRotationResult {
   rotatedAt: string
 }
 
+export interface RootKeyRotationResult {
+  previousRootKeyId: number
+  newRootKeyId: number
+  organizationKeysRewrapped: number
+  rotatedAt: string
+}
+
 export const getMasterKeyStatus = () => service.get<MasterKeyStatus>("/status")
 
 export const rotateMasterKey = () =>
   service.post<MasterKeyRotationResult>("/rotate")
+
+export const rotateRootKey = () =>
+  service.post<RootKeyRotationResult>("/rotate-root")

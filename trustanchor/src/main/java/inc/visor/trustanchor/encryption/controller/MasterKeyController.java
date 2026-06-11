@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import inc.visor.trustanchor.encryption.dto.MasterKeyRotationResultDto;
 import inc.visor.trustanchor.encryption.dto.MasterKeyStatusDto;
 import inc.visor.trustanchor.encryption.dto.RootKeyInfoDto;
+import inc.visor.trustanchor.encryption.dto.RootKeyRotationResultDto;
 import inc.visor.trustanchor.encryption.entity.RootKey;
 import inc.visor.trustanchor.encryption.service.KeyManagementService;
 import lombok.RequiredArgsConstructor;
@@ -56,5 +57,11 @@ public class MasterKeyController {
     @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<MasterKeyRotationResultDto> rotate() {
         return ResponseEntity.ok(keyManagementService.rotateMasterKey());
+    }
+
+    @PostMapping("/rotate-root")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<RootKeyRotationResultDto> rotateRoot() {
+        return ResponseEntity.ok(keyManagementService.rotateRootKey());
     }
 }
