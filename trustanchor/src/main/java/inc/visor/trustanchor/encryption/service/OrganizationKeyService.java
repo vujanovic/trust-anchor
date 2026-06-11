@@ -1,15 +1,17 @@
 package inc.visor.trustanchor.encryption.service;
 
+import java.security.SecureRandom;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import inc.visor.trustanchor.encryption.dto.EncryptedData;
 import inc.visor.trustanchor.encryption.entity.OrganizationKey;
 import inc.visor.trustanchor.encryption.repository.OrganizationKeyRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.security.SecureRandom;
 
 @Service
 @RequiredArgsConstructor

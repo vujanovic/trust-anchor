@@ -16,6 +16,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.vault.core.VaultOperations;
@@ -305,6 +306,14 @@ public class KeyManagementService {
             throw new IllegalStateException("Master key not initialized");
         }
         return masterKey;
+    }
+
+    public int getMasterKeyVersion() {
+        return masterKeyVersion;
+    }
+
+    public List<RootKey> getRootKeyHistory() {
+        return rootKeyRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     private String bytesToHex(byte[] bytes) {
