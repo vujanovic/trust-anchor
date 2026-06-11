@@ -1,7 +1,12 @@
 package inc.visor.trustanchor.encryption.service;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +43,7 @@ public class KeyManagementService {
     private static final String VAULT_BACKEND = "secret";
     private static final String VAULT_SECRET_PATH = "application";
     private static final String MASTER_KEY_PROPERTY = "master.encryption.key";
+    private static final String ENV_MASTER_KEY = "MASTER_ENCRYPTION_KEY";
 
     private final RootKeyRepository rootKeyRepository;
     private final EncryptionService encryptionService;
@@ -46,6 +52,9 @@ public class KeyManagementService {
 
     @Value("${master.encryption.key}")
     private String masterKeyHex;
+
+    @Value("${master-key.rotation.env-file:./.env}")
+    private String envFilePath;
 
     private volatile SecretKey masterKey;
     private volatile int masterKeyVersion;
@@ -106,9 +115,25 @@ public class KeyManagementService {
             Optional<RootKey> existingRootKey = rootKeyRepository.findByIsActiveTrue();
 
             if (existingRootKey.isPresent()) {
-                log.info("Active root key found ID: {})", existingRootKey.get().getId());
-                this.rootKey = decryptRootKey(existingRootKey.get());
-                log.info("Root key loaded and decrypted");
+                RootKey entity = existingRootKey.get();
+                log.info("Active root key found (ID: {}, wrapped with master key v{})", entity.getId(), entity.getMasterKeyVersion());
+
+                if (entity.getMasterKeyVersion() == masterKeyVersion) {
+                    this.rootKey = decryptRootKey(entity, masterKey);
+                    
+                    log.info("Root key loaded and decrypted");
+                } else {
+                    // Interrupted rotation or stale .env re-sync: unwrap with the historic
+                    // key version from KV v2, then re-wrap under the current master key.
+                    log.warn("Root key wrapped with master key v{} but current is v{} — re-wrapping",
+                            entity.getMasterKeyVersion(), masterKeyVersion);
+                    
+                    this.rootKey = decryptRootKey(entity, fetchMasterKeyVersion(entity.getMasterKeyVersion()));
+                    
+                    replaceActiveRootKey(entity, masterKey, masterKeyVersion);
+                    
+                    log.info("Root key re-wrapped under master key v{}", masterKeyVersion);
+                }
             } else {
                 log.info("No active root key found in database. Generating new root key...");
                 this.rootKey = generateAndStoreRootKey();
@@ -131,33 +156,19 @@ public class KeyManagementService {
         // 1) Generate a new 256-bit AES key the same way init-vault.ps1 does during initial setup.
         byte[] newKeyBytes = new byte[ROOT_KEY_SIZE];
         secureRandom.nextBytes(newKeyBytes);
+        String newKeyHex = bytesToHex(newKeyBytes);
         SecretKey newMasterKey = new SecretKeySpec(newKeyBytes, AES_ALGORITHM);
 
         // 2) Persist to Vault first so the key is durable before anything is encrypted with it; if this fails the rotation aborts and the old key remains active.
-        int newVersion = writeMasterKeyToVault(bytesToHex(newKeyBytes));
+        int newVersion = writeMasterKeyToVault(newKeyHex);
 
         // 3) Re-wrap the same root key value under a fresh nonce and the new master key.
-        EncryptedData rewrapped = encryptionService.encrypt(rootKey.getEncoded(), newMasterKey);
+        replaceActiveRootKey(activeEntity, newMasterKey, newVersion);
 
-        RootKey replacement = RootKey.builder()
-                .encryptedKey(rewrapped.ciphertext())
-                .nonce(rewrapped.nonce())
-                .authTag(rewrapped.authTag())
-                .masterKeyVersion(newVersion)
-                .createdAt(LocalDateTime.now())
-                .isActive(true)
-                .build();
+        // Keep .env in sync — start-vault.ps1 re-syncs it into Vault on every boot.
+        updateEnvFile(newKeyHex);
 
-        // Deactivate and wipe the old row's key material so the previous master key can no longer decrypt anything; version/date metadata is kept for audit history.
-        activeEntity.setActive(false);
-        activeEntity.setEncryptedKey(new byte[0]);
-        activeEntity.setNonce(new byte[0]);
-        activeEntity.setAuthTag(new byte[0]);
-
-        // saveAll = jedna transakcija: u bazi nikad ne može da osvane 0 ili 2 aktivna root ključa
-        rootKeyRepository.saveAll(List.of(activeEntity, replacement));
-
-        // 4) tek na kraju zamena u memoriji — do ove tačke sistem je ceo radio sa starim ključem
+        // 4) Swap the in-memory key last; until this point the system ran on the old key.
         this.masterKey = newMasterKey;
         this.masterKeyVersion = newVersion;
 
@@ -169,8 +180,7 @@ public class KeyManagementService {
 
     private int writeMasterKeyToVault(String newKeyHex) {
         try {
-            // read-modify-write: na istoj Vault putanji živi i jwt.secret — ne sme da nestane,
-            // jer KV v2 put zamenjuje CEO sadržaj tajne, ne samo jedan ključ
+            // Read-modify-write: KV v2 put replaces the whole secret, so keep jwt.secret intact.
             Versioned<Map<String, Object>> latest = readLatestVaultSecret();
             
             Map<String, Object> data = new HashMap<>();
@@ -188,6 +198,72 @@ public class KeyManagementService {
             return metadata.getVersion().getVersion();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to store the new master key in Vault — rotation aborted", e);
+        }
+    }
+
+    private RootKey replaceActiveRootKey(RootKey oldEntity, SecretKey wrappingKey, int wrappingKeyVersion) {
+        EncryptedData rewrapped = encryptionService.encrypt(rootKey.getEncoded(), wrappingKey);
+
+        RootKey replacement = RootKey.builder()
+                .encryptedKey(rewrapped.ciphertext())
+                .nonce(rewrapped.nonce())
+                .authTag(rewrapped.authTag())
+                .masterKeyVersion(wrappingKeyVersion)
+                .createdAt(LocalDateTime.now())
+                .isActive(true)
+                .build();
+
+        // Deactivate and wipe the old row so the previous master key can no longer decrypt anything.
+        oldEntity.setActive(false);
+        oldEntity.setEncryptedKey(new byte[0]);
+        oldEntity.setNonce(new byte[0]);
+        oldEntity.setAuthTag(new byte[0]);
+
+        // saveAll runs in a single transaction — never zero or two active root keys.
+        rootKeyRepository.saveAll(List.of(oldEntity, replacement));
+
+        return replacement;
+    }
+
+    private SecretKey fetchMasterKeyVersion(int version) {
+        Versioned<Map<String, Object>> secret = vaultOperations
+                .opsForVersionedKeyValue(VAULT_BACKEND)
+                .get(VAULT_SECRET_PATH, Versioned.Version.from(version));
+
+        if (secret == null || secret.getData() == null
+                || !(secret.getData().get(MASTER_KEY_PROPERTY) instanceof String hex)) {
+            throw new IllegalStateException("Master key v" + version + " not found in Vault — cannot unwrap the root key");
+        }
+
+        return toAesKey(hex);
+    }
+
+    private void updateEnvFile(String newKeyHex) {
+        Path path = Path.of(envFilePath);
+        try {
+            if (!Files.exists(path)) {
+                log.warn(".env not found at {} — update {} manually", path.toAbsolutePath(), ENV_MASTER_KEY);
+                return;
+            }
+
+            List<String> lines = new ArrayList<>(Files.readAllLines(path, StandardCharsets.UTF_8));
+            boolean replaced = false;
+            for (int i = 0; i < lines.size(); i++) {
+                if (lines.get(i).startsWith(ENV_MASTER_KEY + "=")) {
+                    lines.set(i, ENV_MASTER_KEY + "=" + newKeyHex);
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) {
+                lines.add(ENV_MASTER_KEY + "=" + newKeyHex);
+            }
+
+            Files.write(path, lines, StandardCharsets.UTF_8);
+            log.info("{} updated in {}", ENV_MASTER_KEY, path.toAbsolutePath());
+        } catch (IOException e) {
+            // Best effort — startup self-heal recovers if a stale key gets re-synced later.
+            log.warn("Could not update {} — refresh {} manually", path.toAbsolutePath(), ENV_MASTER_KEY, e);
         }
     }
 
@@ -216,10 +292,10 @@ public class KeyManagementService {
         return newRootKey;
     }
 
-    private SecretKey decryptRootKey(RootKey rootKeyEntity) throws Exception {
+    private SecretKey decryptRootKey(RootKey rootKeyEntity, SecretKey wrappingKey) throws Exception {
 
         EncryptedData data = new EncryptedData(rootKeyEntity.getEncryptedKey(), rootKeyEntity.getNonce(), rootKeyEntity.getAuthTag());
-        byte[] decryptedKeyBytes = encryptionService.decrypt(data, masterKey);
+        byte[] decryptedKeyBytes = encryptionService.decrypt(data, wrappingKey);
 
         return new SecretKeySpec(decryptedKeyBytes, AES_ALGORITHM);
     }
