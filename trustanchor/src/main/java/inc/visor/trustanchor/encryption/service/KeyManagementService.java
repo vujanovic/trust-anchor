@@ -1,5 +1,19 @@
 package inc.visor.trustanchor.encryption.service;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.vault.core.VaultOperations;
+import org.springframework.vault.support.Versioned;
+
 import inc.visor.trustanchor.encryption.dto.EncryptedData;
 import inc.visor.trustanchor.encryption.entity.RootKey;
 import inc.visor.trustanchor.encryption.repository.RootKeyRepository;
@@ -7,17 +21,6 @@ import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.security.SecureRandom;
-import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Service
 @Slf4j
@@ -28,14 +31,21 @@ public class KeyManagementService {
     private static final int ROOT_KEY_SIZE = 32;
     private static final String AES_ALGORITHM = "AES";
 
+    // KV v2 putanja na kojoj init-vault skripta drži tajne: secret/application
+    private static final String VAULT_BACKEND = "secret";
+    private static final String VAULT_SECRET_PATH = "application";
+    private static final String MASTER_KEY_PROPERTY = "master.encryption.key";
+
     private final RootKeyRepository rootKeyRepository;
     private final EncryptionService encryptionService;
+    private final VaultOperations vaultOperations;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${master.encryption.key}")
     private String masterKeyHex;
 
     private SecretKey masterKey;
+    private int masterKeyVersion;
 
     @Getter
     private SecretKey rootKey;
@@ -48,23 +58,44 @@ public class KeyManagementService {
     }
 
     private void initializeMasterKey() {
+        Versioned<Map<String, Object>> latest = readLatestVaultSecret();
+
+        if (latest != null && latest.getData() != null
+                && latest.getData().get(MASTER_KEY_PROPERTY) instanceof String hexFromVault) {
+            this.masterKey = toAesKey(hexFromVault);
+            this.masterKeyVersion = latest.getVersion().getVersion();
+            log.info("Master key v{} loaded from Vault ({}/{})", masterKeyVersion, VAULT_BACKEND, VAULT_SECRET_PATH);
+            return;
+        }
+
         if (masterKeyHex == null || masterKeyHex.isBlank()) {
             log.error("PLEASE RUN THE SETUP THAT YOU WERE TOLD TO RUN AAAAAAAAAAAAAAAAAAAAAA");
             throw new IllegalStateException("Master key not found in Vault at 'master.encryption.key'");
         }
 
-        byte[] keyBytes = hexToBytes(masterKeyHex.trim());
+        this.masterKey = toAesKey(masterKeyHex);
+        this.masterKeyVersion = 1;
+        log.warn("Versioned Vault read unavailable; master key loaded from configuration property (treated as v1)");
+    }
+
+    private Versioned<Map<String, Object>> readLatestVaultSecret() {
+        try {
+            return vaultOperations.opsForVersionedKeyValue(VAULT_BACKEND).get(VAULT_SECRET_PATH);
+        } catch (Exception e) {
+            log.warn("Could not read versioned secret from Vault: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private SecretKey toAesKey(String hex) {
+        byte[] keyBytes = hexToBytes(hex.trim());
 
         if (keyBytes.length != 32) {
             log.error("Invalid master key length: {} bytes (expected 32 bytes)", keyBytes.length);
             throw new IllegalArgumentException("Master key must be 256-bit (32 bytes / 64 hex characters)");
         }
 
-        this.masterKey = new SecretKeySpec(keyBytes, AES_ALGORITHM);
-
-        log.info("Master key initialized successfully from Vault!");
-        log.info("Key algorithm: {}", masterKey.getAlgorithm());
-        log.info("Key format: {}", masterKey.getFormat());
+        return new SecretKeySpec(keyBytes, AES_ALGORITHM);
     }
 
     private void initializeRootKey() {
@@ -100,14 +131,14 @@ public class KeyManagementService {
                 .encryptedKey(encryptedData.ciphertext())
                 .nonce(encryptedData.nonce())
                 .authTag(encryptedData.authTag())
-                .masterKeyVersion(1)
+                .masterKeyVersion(masterKeyVersion)
                 .createdAt(LocalDateTime.now())
                 .isActive(true)
                 .build();
 
         rootKeyRepository.save(rootKeyEntity);
 
-        log.info("Root key encrypted with master key and saved (ID: {})", rootKeyEntity.getId());
+        log.info("Root key encrypted with master key v{} and saved (ID: {})", masterKeyVersion, rootKeyEntity.getId());
 
         return newRootKey;
     }
