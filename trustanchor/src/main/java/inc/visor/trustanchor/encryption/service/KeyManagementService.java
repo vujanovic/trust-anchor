@@ -2,6 +2,8 @@ package inc.visor.trustanchor.encryption.service;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -15,6 +17,7 @@ import org.springframework.vault.core.VaultOperations;
 import org.springframework.vault.support.Versioned;
 
 import inc.visor.trustanchor.encryption.dto.EncryptedData;
+import inc.visor.trustanchor.encryption.dto.MasterKeyRotationResultDto;
 import inc.visor.trustanchor.encryption.entity.RootKey;
 import inc.visor.trustanchor.encryption.repository.RootKeyRepository;
 import jakarta.annotation.PostConstruct;
@@ -31,7 +34,7 @@ public class KeyManagementService {
     private static final int ROOT_KEY_SIZE = 32;
     private static final String AES_ALGORITHM = "AES";
 
-    // KV v2 putanja na kojoj init-vault skripta drži tajne: secret/application
+    // KV v2 path where the init-vault script stores secrets.
     private static final String VAULT_BACKEND = "secret";
     private static final String VAULT_SECRET_PATH = "application";
     private static final String MASTER_KEY_PROPERTY = "master.encryption.key";
@@ -44,8 +47,8 @@ public class KeyManagementService {
     @Value("${master.encryption.key}")
     private String masterKeyHex;
 
-    private SecretKey masterKey;
-    private int masterKeyVersion;
+    private volatile SecretKey masterKey;
+    private volatile int masterKeyVersion;
 
     @Getter
     private SecretKey rootKey;
@@ -118,6 +121,76 @@ public class KeyManagementService {
         }
     }
 
+    /** Generates a new 256-bit master key, writes it to Vault, and re-wraps the root key under it; synchronized to prevent concurrent rotations. */
+    public synchronized MasterKeyRotationResultDto rotateMasterKey() {
+        RootKey activeEntity = rootKeyRepository.findByIsActiveTrue()
+                .orElseThrow(() -> new IllegalStateException("No active root key found — nothing to re-wrap"));
+
+        int previousVersion = masterKeyVersion;
+
+        // 1) Generate a new 256-bit AES key the same way init-vault.ps1 does during initial setup.
+        byte[] newKeyBytes = new byte[ROOT_KEY_SIZE];
+        secureRandom.nextBytes(newKeyBytes);
+        SecretKey newMasterKey = new SecretKeySpec(newKeyBytes, AES_ALGORITHM);
+
+        // 2) Persist to Vault first so the key is durable before anything is encrypted with it; if this fails the rotation aborts and the old key remains active.
+        int newVersion = writeMasterKeyToVault(bytesToHex(newKeyBytes));
+
+        // 3) Re-wrap the same root key value under a fresh nonce and the new master key.
+        EncryptedData rewrapped = encryptionService.encrypt(rootKey.getEncoded(), newMasterKey);
+
+        RootKey replacement = RootKey.builder()
+                .encryptedKey(rewrapped.ciphertext())
+                .nonce(rewrapped.nonce())
+                .authTag(rewrapped.authTag())
+                .masterKeyVersion(newVersion)
+                .createdAt(LocalDateTime.now())
+                .isActive(true)
+                .build();
+
+        // Deactivate and wipe the old row's key material so the previous master key can no longer decrypt anything; version/date metadata is kept for audit history.
+        activeEntity.setActive(false);
+        activeEntity.setEncryptedKey(new byte[0]);
+        activeEntity.setNonce(new byte[0]);
+        activeEntity.setAuthTag(new byte[0]);
+
+        // saveAll = jedna transakcija: u bazi nikad ne može da osvane 0 ili 2 aktivna root ključa
+        rootKeyRepository.saveAll(List.of(activeEntity, replacement));
+
+        // 4) tek na kraju zamena u memoriji — do ove tačke sistem je ceo radio sa starim ključem
+        this.masterKey = newMasterKey;
+        this.masterKeyVersion = newVersion;
+
+        log.info("Master key rotated: v{} -> v{} (root key re-wrapped; org keys and certificate keys untouched)",
+                previousVersion, newVersion);
+
+        return new MasterKeyRotationResultDto(previousVersion, newVersion, LocalDateTime.now());
+    }
+
+    private int writeMasterKeyToVault(String newKeyHex) {
+        try {
+            // read-modify-write: na istoj Vault putanji živi i jwt.secret — ne sme da nestane,
+            // jer KV v2 put zamenjuje CEO sadržaj tajne, ne samo jedan ključ
+            Versioned<Map<String, Object>> latest = readLatestVaultSecret();
+            
+            Map<String, Object> data = new HashMap<>();
+            
+            if (latest != null && latest.getData() != null) {
+                data.putAll(latest.getData());
+            }
+            
+            data.put(MASTER_KEY_PROPERTY, newKeyHex);
+
+            Versioned.Metadata metadata = vaultOperations
+                    .opsForVersionedKeyValue(VAULT_BACKEND)
+                    .put(VAULT_SECRET_PATH, data);
+
+            return metadata.getVersion().getVersion();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to store the new master key in Vault — rotation aborted", e);
+        }
+    }
+
     private SecretKey generateAndStoreRootKey() throws Exception {
 
         byte[] rootKeyBytes = new byte[ROOT_KEY_SIZE];
@@ -156,6 +229,14 @@ public class KeyManagementService {
             throw new IllegalStateException("Master key not initialized");
         }
         return masterKey;
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private byte[] hexToBytes(String hex) {
