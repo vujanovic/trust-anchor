@@ -501,15 +501,17 @@ export default function AppCAUserMain() {
                       {cert.status !== "REVOKED" && <TableCell />}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto px-2 py-1"
-                            onClick={() => setDownloading(cert)}
-                          >
+                          {cert.status === "ACTIVE" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto px-2 py-1"
+                              onClick={() => setDownloading(cert)}
+                            >
                             <Download className="mr-1.5 h-3.5 w-3.5" />
                             Download
                           </Button>
+                          )}
                           {cert.status === "ACTIVE" && (
                             <Button
                               variant="ghost"

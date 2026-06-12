@@ -123,7 +123,8 @@ export function CertificateTable({
               <TableCell>{getStatusBadge(cert.status)}</TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <Button
+                  {cert.status === "ACTIVE" && (
+                    <Button
                     variant="ghost"
                     size="sm"
                     className="h-auto px-2 py-1"
@@ -132,6 +133,7 @@ export function CertificateTable({
                     <Download className="mr-1.5 h-3.5 w-3.5" />
                     Download
                   </Button>
+                  )}
                   {cert.status === "ACTIVE" && (
                     <Button
                       variant="ghost"
