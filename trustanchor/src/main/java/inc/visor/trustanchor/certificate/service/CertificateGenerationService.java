@@ -32,6 +32,9 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,8 +59,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CertificateGenerationService {
 
+    @Value("${app.crl.url}")
+    private String crlUrl;
     private static final String SIGN_ALGORITHM = "SHA256withRSA";
     private static final int KEY_SIZE = 2048;
+
+    private static final Logger logger = LoggerFactory.getLogger(CertificateGenerationService.class);
 
     private final EncryptionService encryptionService;
     private final OrganizationKeyService orgKeyService;
@@ -443,6 +450,21 @@ public class CertificateGenerationService {
             if (!purposes.isEmpty()) {
                 builder.addExtension(Extension.extendedKeyUsage, false,
                         new ExtendedKeyUsage(purposes.toArray(KeyPurposeId[]::new)));
+            }
+        }
+        if (!isRoot) {
+            try {
+                org.bouncycastle.asn1.x509.GeneralName gn = new org.bouncycastle.asn1.x509.GeneralName(
+                        org.bouncycastle.asn1.x509.GeneralName.uniformResourceIdentifier, crlUrl);
+                org.bouncycastle.asn1.x509.CRLDistPoint crlDistPoint = new org.bouncycastle.asn1.x509.CRLDistPoint(
+                        new org.bouncycastle.asn1.x509.DistributionPoint[]{
+                                new org.bouncycastle.asn1.x509.DistributionPoint(
+                                        new org.bouncycastle.asn1.x509.DistributionPointName(new org.bouncycastle.asn1.x509.GeneralNames(gn)),
+                                        null, null)
+                        });
+                builder.addExtension(Extension.cRLDistributionPoints, false, crlDistPoint);
+            } catch (Exception e) {
+                logger.warn("Failed to add CRL Distribution Point extension: {}", e.getMessage());
             }
         }
     }

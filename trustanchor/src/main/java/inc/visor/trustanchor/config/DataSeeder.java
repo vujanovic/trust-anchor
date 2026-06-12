@@ -42,6 +42,8 @@ import inc.visor.trustanchor.user.entity.UserStatus;
 import inc.visor.trustanchor.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
+import static org.bouncycastle.asn1.x509.GeneralName.uniformResourceIdentifier;
+
 @Component
 @RequiredArgsConstructor
 public class DataSeeder implements CommandLineRunner {
@@ -168,6 +170,13 @@ public class DataSeeder implements CommandLineRunner {
                 dn, serial, from, to, dn, keyPair.getPublic()
         );
 
+        String crlUrl = "https://localhost:8443/api/crl";
+        org.bouncycastle.asn1.x509.GeneralName gn = new org.bouncycastle.asn1.x509.GeneralName(uniformResourceIdentifier, crlUrl);
+        org.bouncycastle.asn1.x509.CRLDistPoint crlDistPoint = new org.bouncycastle.asn1.x509.CRLDistPoint(new org.bouncycastle.asn1.x509.DistributionPoint[]{
+                new org.bouncycastle.asn1.x509.DistributionPoint(new org.bouncycastle.asn1.x509.DistributionPointName(new org.bouncycastle.asn1.x509.GeneralNames(gn)), null, null)
+        });
+        builder.addExtension(Extension.cRLDistributionPoints, false, crlDistPoint);
+
         JcaX509ExtensionUtils utils = new JcaX509ExtensionUtils();
         builder.addExtension(Extension.subjectKeyIdentifier, false,
                 utils.createSubjectKeyIdentifier(keyPair.getPublic()));
@@ -199,7 +208,7 @@ public class DataSeeder implements CommandLineRunner {
         cert.setPrivateKeyEncrypted(packedKey);
         cert.setStatus(CertificateStatus.ACTIVE);
         cert.setExtensions("{\"isCA\":true,\"keyCertSign\":true,\"crlSign\":true,\"digitalSignature\":true}");
-
+        cert.setCrlDistributionPoint(crlUrl);
         return certificateRepository.save(cert);
     }
 
@@ -245,12 +254,12 @@ public class DataSeeder implements CommandLineRunner {
             builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
         }
 
-//        String crlUrl = "https://localhost:8443/api/crl";
-//        org.bouncycastle.asn1.x509.GeneralName gn = new org.bouncycastle.asn1.x509.GeneralName(org.bouncycastle.asn1.x509.GeneralName.uniformResourceIdentifier, crlUrl);
-//        org.bouncycastle.asn1.x509.CRLDistPoint crlDistPoint = new org.bouncycastle.asn1.x509.CRLDistPoint(new org.bouncycastle.asn1.x509.DistributionPoint[]{
-//            new org.bouncycastle.asn1.x509.DistributionPoint(new org.bouncycastle.asn1.x509.DistributionPointName(new org.bouncycastle.asn1.x509.GeneralNames(gn)), null, null)
-//        });
-//        builder.addExtension(Extension.cRLDistributionPoints, false, crlDistPoint);
+        String crlUrl = "https://localhost:8443/api/crl";
+        org.bouncycastle.asn1.x509.GeneralName gn = new org.bouncycastle.asn1.x509.GeneralName(uniformResourceIdentifier, crlUrl);
+        org.bouncycastle.asn1.x509.CRLDistPoint crlDistPoint = new org.bouncycastle.asn1.x509.CRLDistPoint(new org.bouncycastle.asn1.x509.DistributionPoint[]{
+            new org.bouncycastle.asn1.x509.DistributionPoint(new org.bouncycastle.asn1.x509.DistributionPointName(new org.bouncycastle.asn1.x509.GeneralNames(gn)), null, null)
+        });
+        builder.addExtension(Extension.cRLDistributionPoints, false, crlDistPoint);
 
         ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
@@ -275,7 +284,7 @@ public class DataSeeder implements CommandLineRunner {
         cert.setPublicKey(childKeyPair.getPublic().getEncoded());
         cert.setPrivateKeyEncrypted(packedKey);
         cert.setStatus(CertificateStatus.ACTIVE);
-
+        cert.setCrlDistributionPoint(crlUrl);
         cert.setExtensions(type == CertificateType.INTERMEDIATE ?
                 "{\"isCA\":true,\"keyCertSign\":true,\"crlSign\":true,\"digitalSignature\":true}" :
                 "{\"isCA\":false,\"digitalSignature\":true,\"keyEncipherment\":true}");
