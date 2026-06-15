@@ -19,14 +19,11 @@ import inc.visor.trustanchor.certificate.dto.Pair;
 import inc.visor.trustanchor.certificate.entity.Request;
 import jakarta.persistence.EntityNotFoundException;
 import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.x500.RDN;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x509.BasicConstraints;
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.asn1.x509.*;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -193,6 +190,15 @@ public class CertificateGenerationService {
 
             JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
                     issuerDN, serial, notBefore, notAfter, subjectDN, keyPair.getPublic());
+
+            if (isLocalhost(subjectDN)) {
+                GeneralName[] sans = new GeneralName[] {
+                        new GeneralName(GeneralName.dNSName, "localhost"),
+                        new GeneralName(GeneralName.iPAddress, "127.0.0.1")
+                };
+                certBuilder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(sans));
+            }
+
             addExtensions(certBuilder, ext, keyPair.getPublic(), issuerPublicKey, isRoot);
             ContentSigner signer = new JcaContentSignerBuilder(SIGN_ALGORITHM)
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
@@ -333,8 +339,19 @@ public class CertificateGenerationService {
                 issuerPublicKey = issuerX509.getPublicKey();
             }
 
+
+
             JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
                     issuerDN, serial, notBefore, notAfter, subjectDN, keyPair.getPublic());
+
+            if (isLocalhost(subjectDN)) {
+                GeneralName[] sans = new GeneralName[] {
+                        new GeneralName(org.bouncycastle.asn1.x509.GeneralName.dNSName, "localhost"),
+                        new GeneralName(org.bouncycastle.asn1.x509.GeneralName.iPAddress, "127.0.0.1")
+                };
+                certBuilder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(sans));
+            }
+
             addExtensions(certBuilder, ext, keyPair.getPublic(), issuerPublicKey, isRoot);
             ContentSigner signer = new JcaContentSignerBuilder(SIGN_ALGORITHM)
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
@@ -452,6 +469,8 @@ public class CertificateGenerationService {
                         new ExtendedKeyUsage(purposes.toArray(KeyPurposeId[]::new)));
             }
         }
+
+
         if (!isRoot) {
             try {
                 org.bouncycastle.asn1.x509.GeneralName gn = new org.bouncycastle.asn1.x509.GeneralName(
@@ -467,6 +486,16 @@ public class CertificateGenerationService {
                 logger.warn("Failed to add CRL Distribution Point extension: {}", e.getMessage());
             }
         }
+    }
+
+    private boolean isLocalhost(X500Name name) {
+        if (name == null) return false;
+        RDN[] rdns = name.getRDNs(org.bouncycastle.asn1.x500.style.BCStyle.CN);
+        if (rdns.length > 0) {
+            String cn = rdns[0].getFirst().getValue().toString();
+            return cn != null && cn.toLowerCase().contains("localhost");
+        }
+        return false;
     }
 
     private int buildKeyUsageBits(ExtensionsDto ext) {
