@@ -165,6 +165,9 @@ public class CertificateService {
     @Transactional
     public Certificate revokeCertificate(Long certificateId, RevocationReason reason, AnchorUserDetails currentUser) {
         Certificate certificate = authorizeAndFetch(certificateId, currentUser);
+        if (certificate.getCertificateType() == CertificateType.ROOT) {
+            throw new IllegalArgumentException("Revocation of root certificate is not permitted as it would break the entire PKI hierarchy");
+        }
         if (certificate.getStatus() == CertificateStatus.REVOKED) {
             throw new IllegalArgumentException("Certificate already revoked!");
         }
